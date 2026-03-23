@@ -1,11 +1,19 @@
-# xia — Portable Personal AI Agent
+# 🚀 XIA — eXtremely Intelligent Assistant
 
-> A self-bootstrapping AI agent that lives entirely on an external SSD.  
-> Plug in, double-click, and your personal AI is ready on any Windows machine.
+![Version](https://img.shields.io/badge/version-1.0-blue)
+![Platform](https://img.shields.io/badge/platform-Windows-informational)
+![Python](https://img.shields.io/badge/python-3.11%2B-yellow)
+![GPU](https://img.shields.io/badge/GPU-CUDA%20Adaptive-green)
+![License](https://img.shields.io/badge/license-MIT-purple)
+![Status](https://img.shields.io/badge/status-Active-success)
+![AI](https://img.shields.io/badge/AI-Agent--System-red)
+
+> ⚡ A self-bootstrapping, portable AI agent that runs entirely from an external SSD.
+> Plug in. Double-click. Your personal AI is ready anywhere.
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
 ```bash
 # 1. Plug in your SSD
@@ -13,44 +21,175 @@
 # 3. That's it
 ```
 
-First run automatically handles everything — Python, Ollama, dependencies, and model download (~4GB). Every run after that starts in seconds.
+First run:
+
+* Installs Python, Ollama, dependencies
+* Downloads models (~4GB)
+
+Next runs:
+
+* Start instantly ⚡
 
 ---
 
-## What xia can do
+## 🧠 What XIA Can Do
 
-- **Talk** — local LLM via Ollama, fully offline, no API keys needed
-- **Remember** — stores memories across sessions using ChromaDB + embeddings
-- **Act** — creates files, runs terminal commands, searches the web
-- **Browse** — controls a real Chrome browser (Playwright)
-- **Solve** — autonomous LeetCode solver with debug + retry loop
-- **Learn** — extracts reusable skills from successful tasks automatically
-- **Adapt** — detects host GPU/CPU and routes to the best available model
+* 💬 **Talk** — local LLM (Ollama), fully offline
+* 🧠 **Remember** — persistent memory via ChromaDB
+* ⚡ **Act** — files, commands, automation
+* 🌐 **Browse** — real Chrome control (Playwright)
+* 🧩 **Solve** — autonomous LeetCode agent (debug + retry loop)
+* 📚 **Learn** — extracts reusable skills automatically
+* ⚙️ **Adapt** — GPU/CPU aware model routing
 
 ---
 
-## Setup after cloning
+## 🏗️ Architecture (C4 Model)
+XIA follows a layered, modular architecture inspired by modern agent systems and C4 modeling methodology.
+
+Below are system-level, container-level, and component-level diagrams.
+
+---
+
+## 🏗️ **Level 1 — System Context Diagram**
+
+> Shows how XIA interacts with the outside world
+
+```mermaid id="c4_l1_xia"
+flowchart LR
+
+User[👤 User] -->|Runs| XIA[XIA System]
+
+XIA -->|Uses| Ollama[Local Ollama Runtime]
+XIA -->|Stores Data| Storage[(SSD Storage)]
+XIA -->|Executes Commands| OS[Host Operating System]
+XIA -->|Controls| Browser[Chrome / Web Browser]
+
+Ollama --> Models[Local LLM Models]
+Storage --> MemoryDB[(ChromaDB)]
+Storage --> SkillsDB[(Skills Repository)]
+```
+
+---
+
+## 🧱 **Level 2 — Container Diagram**
+
+> Breaks XIA into major containers (services/modules)
+
+```mermaid id="c4_l2_xia"
+flowchart TB
+
+User --> CLI[CLI Interface]
+
+subgraph XIA_System
+
+CLI --> Agent[Agent Core]
+
+Agent --> Orchestrator[Task Orchestrator]
+Agent --> Context[Context Manager]
+
+Orchestrator --> Models[Model Router]
+Orchestrator --> Tools[Tool Manager]
+Orchestrator --> Skills[Skill Engine]
+
+Context --> Memory[Memory Manager]
+
+end
+
+%% External Systems
+Models --> Ollama[Ollama Runtime]
+Memory --> Chroma[(ChromaDB)]
+Skills --> SkillsDB[(Skills Storage)]
+
+Tools --> FileTool[File System]
+Tools --> CmdTool[Command Executor]
+Tools --> BrowserTool[Browser Automation]
+
+Agent --> Hardware[Hardware Detector]
+
+Hardware --> GPU[GPU Layer Optimizer]
+Hardware --> CPU[CPU Fallback]
+```
+
+---
+
+## ⚙️ **Level 3 — Component Diagram (Core Brain)**
+
+> Deep dive into the Agent Core (this is where you flex 💀)
+
+```mermaid id="c4_l3_xia"
+flowchart TD
+
+%% ENTRY
+Input[User Input / Command] --> Parser[Command Parser]
+
+Parser --> Intent[Intent Classifier]
+Intent --> Planner[Task Planner]
+
+%% PLANNING
+Planner --> Decomposer[Task Decomposer]
+Decomposer --> Steps[Execution Steps]
+
+%% MODEL SELECTION
+Steps --> Router[Model Router]
+Router --> CodeModel[qwen2.5-coder]
+Router --> ChatModel[mistral]
+
+%% CONTEXT + MEMORY
+Planner --> ContextBuilder[Context Builder]
+ContextBuilder --> MemoryFetch[Memory Retriever]
+MemoryFetch --> ChromaDB[(ChromaDB)]
+
+ContextBuilder --> Profile[User Profile]
+
+%% EXECUTION
+Steps --> Executor[Execution Engine]
+
+Executor --> ToolSelector[Tool Selector]
+ToolSelector --> FileOps[File Tool]
+ToolSelector --> CmdExec[Command Tool]
+ToolSelector --> WebTool[Web Tool]
+ToolSelector --> Browser[Browser Automation]
+
+%% LEARNING
+Executor --> Result[Execution Result]
+Result --> SkillExtractor[Skill Extractor]
+SkillExtractor --> PatternEngine[Pattern Analyzer]
+PatternEngine --> SkillsDB[(Skill Storage)]
+
+%% FEEDBACK LOOP
+Result --> Validator[Result Validator]
+Validator --> Planner
+
+%% OUTPUT
+Validator --> Output[Response Generator]
+Output --> User
+
+```
+
+## ⚙️ Setup After Cloning
 
 ```bash
-# 1. Copy the env template
+# Copy env template
 cp .env.example .env
 
-# 2. Add your API keys (optional — DuckDuckGo search works without any key)
-# TAVILY_API_KEY=...   ← best for AI search
-# SERPAPI_KEY=...      ← alternative
+# Add optional API keys
+TAVILY_API_KEY=...
+SERPAPI_KEY=...
 
-# 3. Run the launcher — handles everything else
+# Run system
 launch.bat
 ```
 
-For browser features (Chrome automation + LeetCode):
+Browser setup:
+
 ```bash
 .venv\Scripts\python install_browser.py
 ```
 
 ---
 
-## Architecture
+## 📦 Project Structure
 
 ```
 xia/
@@ -117,7 +256,8 @@ xia/
 
 ---
 
-## CLI Commands
+## 🎮 CLI Commands
+
 
 | Command | Description |
 |---|---|
@@ -135,7 +275,7 @@ xia/
 
 ---
 
-## Multi-model routing
+## 🤖 Multi-Model Routing
 
 xia automatically picks the best available model based on the task:
 
@@ -155,7 +295,7 @@ ollama pull deepseek-r1
 
 ---
 
-## System Requirements
+## 💻 System Requirements
 
 | | Minimum | Recommended |
 |---|---|---|
@@ -170,18 +310,18 @@ xia adapts to whatever hardware is available. GPU is optional — CPU-only works
 
 ---
 
-## Design Principles
+## 🧠 Design Principles
 
-- **Everything on the SSD** — code, models, memory, skills, logs. Nothing touches the host machine permanently.
-- **Drive-letter agnostic** — works whether the SSD mounts as `D:`, `E:`, `F:`, or anything else.
-- **Self-healing** — health checks on every launch catch problems before they become crashes.
-- **No cloud dependency** — runs 100% locally by default. Internet only used for web search.
-- **No retraining** — memory and skills improve responses without touching model weights.
-- **Modular** — every component is independently replaceable. Swap ChromaDB for another vector store, swap Ollama for llama.cpp, swap the CLI for a web UI.
+* Everything lives on the SSD
+* Zero host dependency
+* Self-healing startup
+* Fully local-first
+* No retraining required
+* Fully modular architecture
 
 ---
 
-## Build log
+## 🛠️ Build log
 
 | Part | What was built |
 |---|---|
@@ -200,6 +340,36 @@ xia adapts to whatever hardware is available. GPU is optional — CPU-only works
 
 ---
 
-## License
+## 🚀 What Makes XIA Different
+
+| Feature     | Typical AI | XIA          |
+| ----------- | ---------- | ------------ |
+| Setup       | Manual     | One-click    |
+| Memory      | Temporary  | Persistent   |
+| Actions     | Limited    | Real-world   |
+| Learning    | None       | Skill system |
+| Portability | ❌          | ✅ SSD-based  |
+| Multi-model | Rare       | Built-in     |
+
+---
+
+## ⚠️ Disclaimer
+
+XIA can execute system-level commands.
+Use responsibly.
+
+---
+
+## 📄 License
 
 MIT
+
+---
+
+# 💡 Final Thought
+
+> XIA isn’t just an AI assistant.
+> It’s a **portable AI system that learns, acts, and evolves with you.**
+
+
+
