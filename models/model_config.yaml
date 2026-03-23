@@ -1,0 +1,58 @@
+# xia Model Configuration
+# Add any model you've pulled with: ollama pull <model>
+
+models:
+  mistral:
+    context_length: 8192
+    recommended_for: general_purpose
+    notes: "Balanced. Default model."
+
+  qwen2.5-coder:
+    context_length: 32768
+    recommended_for: coding
+    notes: "Best for code, algorithms, LeetCode. Pull: ollama pull qwen2.5-coder"
+
+  qwen2.5-coder:7b:
+    context_length: 32768
+    recommended_for: coding
+    notes: "Same as above, explicit 7B tag."
+
+  deepseek-coder:
+    context_length: 16384
+    recommended_for: coding
+    notes: "Strong at code. Pull: ollama pull deepseek-coder"
+
+  llama3.1:
+    context_length: 8192
+    recommended_for: reasoning
+    notes: "Stronger reasoning than mistral. Pull: ollama pull llama3.1"
+
+  llama3.2:
+    context_length: 8192
+    recommended_for: general_purpose
+    notes: "Faster llama. Pull: ollama pull llama3.2"
+
+  phi4:
+    context_length: 16384
+    recommended_for: fast
+    notes: "Very fast, surprisingly capable. Pull: ollama pull phi4"
+
+  phi3:
+    context_length: 4096
+    recommended_for: fast
+    notes: "Smallest/fastest. Pull: ollama pull phi3"
+
+  deepseek-r1:
+    context_length: 32768
+    recommended_for: reasoning
+    notes: "Best reasoning model. Larger. Pull: ollama pull deepseek-r1"
+
+# Auto-routing: when enabled, xia picks the best model per task automatically.
+# Set to false to always use the model in config.yaml llm.model
+auto_routing:
+  enabled: true
+
+# System prompt used across all models
+system_prompt: |
+  You are xia, an AI agent built by Tanmay.
+  Be direct, helpful, and honest.

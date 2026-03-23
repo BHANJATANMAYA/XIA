@@ -1,0 +1,24 @@
+# xia Python Dependencies
+# Install with: pip install -r requirements.txt
+# (The launcher handles this automatically)
+
+# ── Core ──────────────────────────────────────────────────────
+pyyaml>=6.0.1           # Config file parsing
+python-dotenv>=1.0.0    # .env file loading
+
+# ── LLM ───────────────────────────────────────────────────────
+ollama>=0.2.0           # Ollama Python client (Part 3)
+
+# ── Memory / Embeddings ───────────────────────────────────────
+chromadb>=0.5.0         # Vector database (Part 7)
+sentence-transformers>=3.0.0  # Local embeddings (Part 7)
+
+# ── CLI Interface ─────────────────────────────────────────────
+rich>=13.7.0            # Pretty terminal output (Part 9)
+
+# ── HTTP / Web ─────────────────────────────────────────────────
+httpx>=0.27.0           # HTTP client for tool calls (Part 6)
+
+# ── Utilities ─────────────────────────────────────────────────
+click>=8.1.0            # CLI argument parsing
+tenacity>=8.2.0         # Retry logic for resilience

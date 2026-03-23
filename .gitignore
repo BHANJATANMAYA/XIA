@@ -1,0 +1,37 @@
+# ── Secrets ───────────────────────────────────────────────────
+.env
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+
+# Personal data
+workspace/
+logs/
+
+# ── Data (large, machine-generated) ───────────────────────────
+data/embeddings/
+data/conversations/
+data/skills_store/
+logs/
+
+# ── Models (stored on SSD but not in git) ─────────────────────
+models/*.bin
+models/*.gguf
+
+models/ollama/
+
+# ── OS files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
