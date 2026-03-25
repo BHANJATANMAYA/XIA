@@ -4,6 +4,8 @@ interface/renderer.py — Terminal Renderer
 Handles all Rich-based output for the xia CLI.
 """
 
+from typing import List, Optional
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -86,7 +88,7 @@ class Renderer:
             input_preview = ""
             if step.tool_input:
                 inp = str(step.tool_input)
-                input_preview = f"  [ui.dim]{inp[:60]}{'…' if len(inp) > 60 else ''}[/ui.dim]"
+                input_preview = f"  [ui.dim]{inp[0:60]}{'…' if len(inp) > 60 else ''}[/ui.dim]"
             self.console.print(
                 f"  [ui.dim]  └ [content.tool]{step.tool_name}[/content.tool]{input_preview}[/ui.dim]"
             )
@@ -95,14 +97,14 @@ class Renderer:
             preview = str(step.tool_result).strip()
             first_line = next((l for l in preview.splitlines() if l.strip()), preview)
             if len(first_line) > 90:
-                first_line = first_line[:90] + "…"
+                first_line = first_line[0:90] + "…"
             self.console.print(
                 f"  [ui.dim]  └ {first_line}[/ui.dim]"
             )
 
     # ── Final answer ───────────────────────────────────────────────────────
 
-    def print_answer(self, answer: str, tools_used: list = None):
+    def print_answer(self, answer: str, tools_used: Optional[List[str]] = None):
         self.console.print()
 
         has_markdown = any(c in answer for c in ["**", "##", "```", "\n- ", "\n1. "])
@@ -129,10 +131,6 @@ class Renderer:
         self.console.print()
         self.console.rule(style="dim")
         self.console.print()
-
-    def print_thinking_start(self):
-        self.console.print()
-        self._step_count = 0
 
     # ── Info messages ──────────────────────────────────────────────────────
 
@@ -184,8 +182,8 @@ class Renderer:
         table.add_column("name",  style="content.skill", width=30)
         table.add_column("description", style="ui.muted")
 
-        for sk in skills[:15]:
-            desc = sk.description[:55] + ("…" if len(sk.description) > 55 else "")
+        for sk in skills[0:15]:
+            desc = sk.description[0:55] + ("…" if len(sk.description) > 55 else "")
             table.add_row(str(sk.success_count), sk.name, desc)
 
         self.console.print(table)
@@ -204,6 +202,7 @@ class Renderer:
 
         commands = [
             ("/exit",            "quit and save session"),
+            ("/end",             "quit xia AND stop ollama completely"),
             ("/clear",           "clear conversation history"),
             ("/save",            "save session to disk now"),
             ("/memory",          "show stored memories"),

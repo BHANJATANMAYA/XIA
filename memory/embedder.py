@@ -51,7 +51,7 @@ class Embedder:
             return self._zero_vector()
 
         try:
-            vector = model.encode(text.strip(), normalize_embeddings=True)
+            vector = model.encode(text.strip(), normalize_embeddings=True, show_progress_bar=False)
             return vector.tolist()
         except Exception as e:
             log.error("Embedding failed: %s", e)
@@ -94,6 +94,15 @@ class Embedder:
             # Tell sentence-transformers to cache models on the SSD
             cache_dir = str(PATHS.models_dir / "embeddings_cache")
             os.makedirs(cache_dir, exist_ok=True)
+
+            # Suppress noisy HuggingFace and transformers warnings
+            os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+            os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+            
+            import logging as py_logging
+            py_logging.getLogger("transformers").setLevel(py_logging.ERROR)
+            py_logging.getLogger("sentence_transformers").setLevel(py_logging.ERROR)
+            py_logging.getLogger("huggingface_hub").setLevel(py_logging.ERROR)
 
             log.info("Loading embedding model: %s (first load may take a moment)", self.model_name)
             self._model = SentenceTransformer(

@@ -57,7 +57,12 @@ def setup_logging(
     # ── Console handler ───────────────────────────────────────────────────
     console = logging.StreamHandler()
     console.setFormatter(fmt)
-    console.setLevel(_get_log_level(level))
+    
+    # Only show WARNING+ on the console to prevent cluttering the clean CLI UI,
+    # unless the user explicitly requested DEBUG level (e.g. via XIA_DEBUG=true)
+    console_level = logging.DEBUG if level.upper() == "DEBUG" else logging.WARNING
+    console.setLevel(console_level)
+    
     root.addHandler(console)
 
     # ── File handler (rotating) ────────────────────────────────────────────

@@ -2,8 +2,10 @@
 interface/cli.py — xia CLI
 """
 
+import subprocess
 import sys
 import os
+from typing import Any, Callable, Dict, Optional
 
 from rich.prompt import Prompt
 
@@ -18,12 +20,12 @@ log = get_logger(__name__)
 class CLI:
     def __init__(self):
         self.renderer = Renderer()
-        self.session  = None
-        self.registry = None
-        self.memory   = None
-        self.skills   = None
-        self.llm      = None
-        self.router   = None
+        self.session:  Optional[Any] = None
+        self.registry: Optional[Any] = None
+        self.memory:   Optional[Any] = None
+        self.skills:   Optional[Any] = None
+        self.llm:      Optional[Any] = None
+        self.router:   Optional[Any] = None
 
     def run(self):
         if sys.platform == "win32":
@@ -128,9 +130,12 @@ class CLI:
             self._handle_message(user_input)
 
     def _handle_message(self, user_input: str):
-        self.renderer.print_thinking_start()
+        self.renderer.reset_step_count()
+        self.renderer.console.print()
         try:
-            result = self.session.send(user_input)
+            with self.renderer.console.status("  [ui.dim]thinking...[/ui.dim]", spinner="dots", spinner_style="ui.dim"):
+                result = self.session.send(user_input)
+                
             self.renderer.print_answer(
                 answer=result.final_answer,
                 tools_used=result.tools_used if result.tools_used else None,
@@ -148,10 +153,11 @@ class CLI:
         cmd   = parts[0].lower()
         args  = parts[1] if len(parts) > 1 else ""
 
-        dispatch = {
+        dispatch: Dict[str, Callable] = {
             "/exit":     self._cmd_exit,
             "/quit":     self._cmd_exit,
             "/q":        self._cmd_exit,
+            "/end":      self._cmd_end,
             "/clear":    self._cmd_clear,
             "/save":     self._cmd_save,
             "/memory":   self._cmd_memory,
@@ -174,6 +180,12 @@ class CLI:
 
     def _cmd_exit(self, _=""):
         self._shutdown()
+        sys.exit(0)
+
+    def _cmd_end(self, _=""):
+        """Save session, stop Ollama, then exit everything."""
+        self._shutdown()
+        self._kill_ollama()
         sys.exit(0)
 
     def _cmd_clear(self, _=""):
@@ -344,4 +356,31 @@ class CLI:
             self.renderer.warning("could not save session: " + str(e))
         self.renderer.console.print()
         self.renderer.console.rule("[xia.name]goodbye[/xia.name]", style="dim cyan")
+        self.renderer.console.print()
+
+    def _kill_ollama(self):
+        """Forcefully stop the Ollama background process."""
+        self.renderer.info("stopping ollama...")
+        try:
+            if sys.platform == "win32":
+                result = subprocess.run(
+                    ["taskkill", "/IM", "ollama.exe", "/F"],
+                    capture_output=True, text=True,
+                )
+                killed = result.returncode == 0
+            else:
+                result = subprocess.run(
+                    ["pkill", "-f", "ollama"],
+                    capture_output=True, text=True,
+                )
+                killed = result.returncode == 0
+
+            if killed:
+                self.renderer.success("ollama stopped")
+            else:
+                self.renderer.warning("ollama was not running (or could not be stopped)")
+        except FileNotFoundError:
+            self.renderer.warning("could not find taskkill/pkill — ollama may still be running")
+        except Exception as e:
+            self.renderer.warning("could not stop ollama: " + str(e))
         self.renderer.console.print()

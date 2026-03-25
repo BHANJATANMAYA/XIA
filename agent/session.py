@@ -10,7 +10,7 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from agent.agent import Agent
 from agent.base import AgentResult, AgentStep, StepType
@@ -73,9 +73,9 @@ class Session:
         memory_manager=None,
         skill_manager=None,
         router=None,
-        on_step: Optional[callable] = None,
+        on_step: Optional[Callable] = None,
     ):
-        self.session_id = str(uuid.uuid4())[:8]
+        self.session_id = str(uuid.uuid4())[0:8]
         self.llm = llm or LLMClient()
         self.tool_registry = tool_registry
         self.memory_manager = memory_manager
@@ -107,7 +107,7 @@ class Session:
             return self._wrap_simple("(empty input)")
 
         mode = "agent" if self._needs_agent(user_input) else "chat"
-        log.info("Session.send(): %r (mode=%s)", user_input[:60], mode)
+        log.info("Session.send(): %r (mode=%s)", user_input[0:60], mode)
 
         if mode == "agent":
             return self._run_agent(user_input)
@@ -140,7 +140,7 @@ class Session:
                     "role": m.role,
                     "content": m.content,
                     "timestamp": m.timestamp,
-                    "had_tool_calls": bool(m.agent_result and m.agent_result.tools_used),
+                    "had_tool_calls": bool(m.agent_result is not None and m.agent_result.tools_used),
                 }
                 for m in self.messages
             ],

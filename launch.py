@@ -74,10 +74,25 @@ def read_config(key_path: str, default=None):
 
 def ensure_venv():
     step("Step 1 — Virtual environment")
+
     if VENV_PY.exists():
-        ok(f"venv exists at .venv")
-        return
-    info("Creating virtual environment on SSD (first time only)...")
+        # Validate the venv actually works on THIS machine.
+        # A venv carries absolute paths to the Python that built it — so a
+        # venv created on PC-A will silently fail on PC-B even if the .exe
+        # file exists on the SSD.
+        probe = subprocess.run(
+            [str(VENV_PY), "--version"],
+            capture_output=True, text=True,
+        )
+        if probe.returncode == 0:
+            ok(f"venv OK  ({probe.stdout.strip()})")
+            return
+
+        warn("Venv is stale (was built on a different machine). Rebuilding...")
+        import shutil
+        shutil.rmtree(str(VENV_DIR), ignore_errors=True)
+
+    info("Creating virtual environment (first time on this machine)...")
     result = subprocess.run([sys.executable, "-m", "venv", str(VENV_DIR)])
     if result.returncode != 0:
         err("Failed to create virtual environment.")
@@ -98,12 +113,15 @@ def ensure_dependencies():
         ok("Dependencies up to date.")
         return
 
-    info("Installing dependencies (may take a few minutes first time)...")
+    info("Installing dependencies (this may take a few minutes the first time)...")
+    print()  # blank line before pip output
     result = subprocess.run([
         str(VENV_PY), "-m", "pip", "install",
         "-r", str(REQ_FILE),
-        "--quiet", "--disable-pip-version-check",
+        "--progress-bar", "on",
+        "--disable-pip-version-check",
     ])
+    print()  # blank line after pip output
 
     if result.returncode != 0:
         err("Dependency install failed.")
