@@ -275,8 +275,9 @@ class LLMClient:
             resp = self._client.get(f"{self.base_url}/api/tags", timeout=3)
             if resp.status_code != 200:
                 return False
-            models = [m["name"].split(":")[0] for m in resp.json().get("models", [])]
-            return self.model in models
+            names = [m["name"] for m in resp.json().get("models", [])]
+            model_base = self.model.split(":")[0]
+            return any(n == self.model or n.split(":")[0] == model_base for n in names)
         except Exception:
             return False
 

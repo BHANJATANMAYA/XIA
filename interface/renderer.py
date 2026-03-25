@@ -65,6 +65,13 @@ class Renderer:
     def reset_step_count(self):
         self._step_count = 0
 
+    def print_thinking_start(self):
+        self._step_count = 0
+        self.console.print(
+            "  [ui.dim]● thinking…[/ui.dim]",
+            end="\r",
+        )
+
     def print_step(self, step):
         """Print a single agent step as it happens."""
         step_type = step.step_type.value
@@ -211,6 +218,8 @@ class Renderer:
             ("/skills",          "list learned skills"),
             ("/tools",           "list available tools"),
             ("/model <name>",    "switch LLM model"),
+            ("/use_model <name>","switch LLM model (alias)"),
+            ("/set_default_model <name>", "change default model in config.yaml"),
             ("/history",         "show message count"),
             ("/help",            "show this help"),
         ]

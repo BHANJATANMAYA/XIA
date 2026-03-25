@@ -6,12 +6,12 @@
 # ─────────────────────────────────────────────
 llm:
   provider: ollama
-  model: mistral          # Change to: llama3, phi3, gemma2, etc.
+  model: qwen3.5:4b          # Change to: llama3, phi3, gemma2, etc.
   base_url: http://localhost:11434
   temperature: 0.7
   max_tokens: 4096
   stream: true
-  timeout: 120            # Seconds before giving up on a response
+  timeout: 300            # Seconds before giving up on a response
 
 # ─────────────────────────────────────────────
 # Agent settings
@@ -53,7 +53,7 @@ tools:
       - "%USERPROFILE%"   # Host user's home folder
   terminal:
     enabled: true
-    timeout: 30           # Seconds before killing a command
+    timeout: 600           # Seconds before killing a command
     dangerous_commands:   # These will require user confirmation
       - "rm"
       - "del"
