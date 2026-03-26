@@ -1,5 +1,5 @@
 """
-launch.py — xia Bootstrap Controller (Part 10: Hardened)
+launch.py - xia Bootstrap Controller (Part 10: Hardened)
 
 Runs every time xia starts. Each step is idempotent.
 Now includes host detection, health checks, and Ollama GPU optimisation.
@@ -24,10 +24,10 @@ class C:
     CYAN   = "\033[96m"
     DIM    = "\033[2m"
 
-def ok(msg):    print(f"  {C.GREEN}✓{C.RESET}  {msg}")
-def info(msg):  print(f"  {C.CYAN}→{C.RESET}  {msg}")
-def warn(msg):  print(f"  {C.YELLOW}!{C.RESET}  {msg}")
-def err(msg):   print(f"  {C.RED}✗{C.RESET}  {msg}")
+def ok(msg):    print(f"  {C.GREEN}[OK]{C.RESET}  {msg}")
+def info(msg):  print(f"  {C.CYAN}[->]{C.RESET}  {msg}")
+def warn(msg):  print(f"  {C.YELLOW}[!]{C.RESET}  {msg}")
+def err(msg):   print(f"  {C.RED}[ERROR]{C.RESET}  {msg}")
 def step(msg):  print(f"\n  {C.BOLD}{msg}{C.RESET}")
 
 
@@ -70,14 +70,14 @@ def read_config(key_path: str, default=None):
         return default
 
 
-# ── Step 1: Venv ───────────────────────────────────────────────────────────────
+# -- Step 1: Venv ---------------------------------------------------------------
 
 def ensure_venv():
-    step("Step 1 — Virtual environment")
+    step("Step 1 - Virtual environment")
 
     if VENV_PY.exists():
         # Validate the venv actually works on THIS machine.
-        # A venv carries absolute paths to the Python that built it — so a
+        # A venv carries absolute paths to the Python that built it - so a
         # venv created on PC-A will silently fail on PC-B even if the .exe
         # file exists on the SSD.
         probe = subprocess.run(
@@ -100,12 +100,12 @@ def ensure_venv():
     ok("Virtual environment created.")
 
 
-# ── Step 2: Dependencies ───────────────────────────────────────────────────────
+# -- Step 2: Dependencies -------------------------------------------------------
 
 def ensure_dependencies():
-    step("Step 2 — Python dependencies")
+    step("Step 2 - Python dependencies")
     if not REQ_FILE.exists():
-        warn("requirements.txt not found — skipping.")
+        warn("requirements.txt not found - skipping.")
         return
 
     current = req_hash()
@@ -132,10 +132,10 @@ def ensure_dependencies():
     ok("Dependencies installed.")
 
 
-# ── Step 3: Host detection ─────────────────────────────────────────────────────
+# -- Step 3: Host detection -----------------------------------------------------
 
 def detect_host() -> dict:
-    step("Step 3 — Host detection")
+    step("Step 3 - Host detection")
     host = {"cpu_cores": os.cpu_count() or 1, "ram_gb": 8.0, "has_gpu": False}
 
     # RAM
@@ -164,19 +164,19 @@ def detect_host() -> dict:
         pass
 
     gpu_str = host.get("gpu_name", "CPU only") if host["has_gpu"] else "CPU only"
-    ok(f"{host['ram_gb']}GB RAM  ·  {host['cpu_cores']} cores  ·  {gpu_str}")
+    ok(f"{host['ram_gb']}GB RAM  |  {host['cpu_cores']} cores  |  {gpu_str}")
 
     # Set Ollama env vars based on host
     threads = max(1, host["cpu_cores"] - 2)
     os.environ["OLLAMA_NUM_THREADS"] = str(threads)
     if host["has_gpu"]:
         os.environ["OLLAMA_GPU_LAYERS"] = "999"
-        info(f"GPU detected — enabling GPU acceleration")
+        info(f"GPU detected - enabling GPU acceleration")
 
     return host
 
 
-# ── Step 4: Ollama ─────────────────────────────────────────────────────────────
+# -- Step 4: Ollama -------------------------------------------------------------
 
 def server_running() -> bool:
     try:
@@ -187,7 +187,7 @@ def server_running() -> bool:
 
 
 def ensure_ollama():
-    step("Step 4 — Ollama")
+    step("Step 4 - Ollama")
 
     if not shutil.which("ollama"):
         print()
@@ -216,7 +216,7 @@ def ensure_ollama():
             print(f"\r  Waiting... {i+1}s", end="", flush=True)
         else:
             print()
-            warn("Ollama slow to start — xia will retry on first request.")
+            warn("Ollama slow to start - xia will retry on first request.")
     else:
         ok("Ollama server running.")
 
@@ -258,7 +258,7 @@ def _ensure_model(model: str):
                 ok(f"Model '{model}' ready.")
                 return
     except Exception:
-        warn("Could not check models — server may still be starting.")
+        warn("Could not check models - server may still be starting.")
         return
 
     print()
@@ -279,10 +279,10 @@ def _progress(count, block, total):
         print(f"\r  [{bar}] {pct}%", end="", flush=True)
 
 
-# ── Step 5: Health check ───────────────────────────────────────────────────────
+# -- Step 5: Health check -------------------------------------------------------
 
 def run_health_check():
-    step("Step 5 — Health check")
+    step("Step 5 - Health check")
     try:
         sys.path.insert(0, str(ROOT))
         from core.health import HealthChecker
@@ -301,10 +301,10 @@ def run_health_check():
         warn(f"Health check skipped: {e}")
 
 
-# ── Step 6: Launch ─────────────────────────────────────────────────────────────
+# -- Step 6: Launch -------------------------------------------------------------
 
 def launch():
-    step("Step 6 — Launching xia")
+    step("Step 6 - Launching xia")
     if not MAIN_PY.exists():
         err(f"main.py not found: {MAIN_PY}")
         sys.exit(1)
@@ -313,7 +313,7 @@ def launch():
     env["XIA_ROOT"] = str(ROOT)
 
     ok("Starting...\n")
-    print("  " + "─" * 48)
+    print("  " + "-" * 48)
 
     result = subprocess.run(
         [str(VENV_PY), str(MAIN_PY)],
@@ -321,25 +321,25 @@ def launch():
         cwd=str(ROOT),
     )
 
-    print("\n  " + "─" * 48)
+    print("\n  " + "-" * 48)
     if result.returncode not in {0, 130}:  # 130 = Ctrl+C
         err(f"xia exited with code {result.returncode}")
         sys.exit(result.returncode)
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+# -- Main -----------------------------------------------------------------------
 
 def main():
     if sys.platform == "win32":
         os.system("")
 
     print()
-    print(f"  {'─'*48}")
-    print(f"  {'xia  —  Bootstrap':^48}")
-    print(f"  {'─'*48}")
+    print(f"  {'-'*48}")
+    print(f"  {'xia  -  Bootstrap':^48}")
+    print(f"  {'-'*48}")
     print(f"  root   : {ROOT}")
     print(f"  python : {sys.version.split()[0]}")
-    print(f"  {'─'*48}")
+    print(f"  {'-'*48}")
 
     try:
         ensure_venv()

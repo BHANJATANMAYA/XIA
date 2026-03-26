@@ -1,13 +1,13 @@
-@echo off
+REM @echo off
 setlocal EnableDelayedExpansion
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
-title xia — Starting...
+title xia - Starting...
 
 :: ================================================================
-::  xia — Offline-First Self-Bootstrapping Launcher v2.0
+::  xia - Offline-First Self-Bootstrapping Launcher v2.0
 ::
-::  Works 100% offline if installers\ folder is pre-bundled.
+::  Works 100%% offline if installers\ folder is pre-bundled.
 ::  Falls back to internet download if bundles are missing.
 ::
 ::  Offline bundle (pre-download once, carry on SSD forever):
@@ -21,11 +21,11 @@ title xia — Starting...
 ::    3. It will never need internet again on any machine
 :: ================================================================
 
-:: ── Locate SSD root (always relative, drive-letter agnostic) ─────────
+:: Locate SSD root (always relative, drive-letter agnostic)
 set "XIA_ROOT=%~dp0"
 if "%XIA_ROOT:~-1%"=="\" set "XIA_ROOT=%XIA_ROOT:~0,-1%"
 
-:: ── Key paths ─────────────────────────────────────────────────────────
+:: Key paths
 set "XIA_VENV=%XIA_ROOT%\.venv"
 set "XIA_PYTHON=%XIA_VENV%\Scripts\python.exe"
 set "XIA_INSTALLERS=%XIA_ROOT%\installers"
@@ -36,14 +36,14 @@ set "OLLAMA_DOWNLOAD_URL=https://ollama.com/download/OllamaSetup.exe"
 set "SYS_PYTHON="
 set "TOTAL_STEPS=6"
 
-:: ── Set Ollama storage paths BEFORE anything starts ──────────────────
-:: Ollama reads these only on startup — must be set first
+:: Set Ollama storage paths BEFORE anything starts
+:: Ollama reads these only on startup - must be set first
 set "OLLAMA_MODELS=%XIA_ROOT%\models\ollama"
 set "OLLAMA_HOME=%XIA_ROOT%\models\ollama"
 setx OLLAMA_MODELS "%XIA_ROOT%\models\ollama" >nul 2>&1
 setx OLLAMA_HOME   "%XIA_ROOT%\models\ollama" >nul 2>&1
 
-:: ── Header ────────────────────────────────────────────────────────────
+:: Header
 echo.
 echo  ================================================================
 echo   xia  ^|  Portable AI Agent  ^|  Offline-First Launcher v2.0
@@ -54,7 +54,7 @@ echo   Bundles  : %XIA_INSTALLERS%
 echo  ================================================================
 echo.
 
-:: ── Ensure required folders exist ────────────────────────────────────
+:: Ensure required folders exist
 if not exist "%XIA_INSTALLERS%"    mkdir "%XIA_INSTALLERS%"
 if not exist "%OLLAMA_MODELS%"     mkdir "%OLLAMA_MODELS%"
 
@@ -70,7 +70,7 @@ if exist "%XIA_PYTHON%" (
         echo   [OK] Virtual environment is healthy.
         goto :step3_deps
     )
-    :: Venv exists but won't run — ported from another machine
+    :: Venv exists but won't run - ported from another machine
     echo   [!] Venv is stale ^(built on a different machine^).
     echo   [!] Removing and rebuilding...
     rmdir /s /q "%XIA_VENV%" >nul 2>&1
@@ -98,7 +98,7 @@ if exist "%XIA_PY_INSTALLER%" (
     goto :do_install_python
 )
 
-:: No local installer — try downloading
+:: No local installer - try downloading
 echo   [!] Offline installer not found in installers\ folder.
 echo   [..] Attempting download from python.org...
 echo.

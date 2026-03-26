@@ -6,7 +6,7 @@
 # ─────────────────────────────────────────────
 llm:
   provider: ollama
-  model: qwen3.5:4b          # Change to: llama3, phi3, gemma2, etc.
+  model: mistral          # Change to: llama3, phi3, gemma2, etc.
   base_url: http://localhost:11434
   temperature: 0.7
   max_tokens: 4096

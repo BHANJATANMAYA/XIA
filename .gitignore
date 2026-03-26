@@ -35,3 +35,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# ── Installers (large, machine-generated) ─────────────────────
+installers/

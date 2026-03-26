@@ -185,26 +185,41 @@ class CLI:
         sys.exit(0)
 
     def _cmd_end(self, _=""):
-        """Shut down xia AND stop the ollama server process."""
+        """Shut down xia AND forcefully stop ALL ollama processes."""
         import subprocess
         self._shutdown()
-        self.renderer.info("stopping ollama...")
-        try:
-            result = subprocess.run(
-                ["ollama", "stop"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode == 0:
-                self.renderer.success("ollama stopped")
-            else:
-                # fallback: kill the process directly
-                subprocess.run(["taskkill", "/F", "/IM", "ollama.exe"],
-                               capture_output=True, timeout=10)
-                self.renderer.success("ollama process terminated")
-        except Exception as e:
-            self.renderer.warning("could not stop ollama: " + str(e))
+
+        self.renderer.info("stopping all ollama processes...")
+
+        # List of all ollama-related process names to kill
+        processes = ["ollama.exe", "ollama_runners.exe", "ollama app.exe"]
+        killed = False
+
+        for proc in processes:
+            try:
+                # /F = force, /T = kill entire process tree, /IM = by image name
+                result = subprocess.run(
+                    ["taskkill", "/F", "/T", "/IM", proc],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode == 0:
+                    self.renderer.success("killed: " + proc)
+                    killed = True
+            except Exception:
+                pass
+
+        if not killed:
+            self.renderer.info("no ollama processes found (already stopped)")
+        else:
+            self.renderer.success("all ollama processes terminated")
+
         self.renderer.console.print()
-        sys.exit(0)
+        self.renderer.console.rule("[xia.name]everything stopped[/xia.name]", style="dim cyan")
+        self.renderer.console.print()
+
+        # Use os._exit to guarantee immediate termination —
+        # sys.exit can be caught and background threads may linger
+        os._exit(0)
 
     def _cmd_clear(self, _=""):
         self.session.clear_history()
