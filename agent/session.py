@@ -14,7 +14,6 @@ from typing import List, Optional
 
 from agent.agent import Agent
 from agent.base import AgentResult, AgentStep, StepType
-from core.config import cfg
 from core.llm import LLMClient, Message
 from core.logger import get_logger
 from core.paths import PATHS
@@ -23,7 +22,7 @@ from core.prompt import PromptBuilder
 log = get_logger(__name__)
 
 # Triggers that suggest the agent loop is needed (tools required)
-AGENT_TRIGGERS = [
+AGENT_TRIGGERS = (
     # File operations
     "create file", "write file", "read file", "delete file", "list files",
     "make a file", "new file", "save file", "open file",
@@ -33,7 +32,6 @@ AGENT_TRIGGERS = [
     # Browser — always use browser tool for these
     "go to", "open browser", "navigate to", "browse to",
     "click on", "fill in", "type into",
-    "leetcode", "solve problem", "solve leetcode",
     # Web search
     "search for", "look up", "google", "browse",
     "latest news", "recent news", "current price", "today's",
@@ -41,10 +39,10 @@ AGENT_TRIGGERS = [
     # Multi-step tasks
     "step by step", "build", "set up", "configure", "deploy",
     "how do i", "can you help me",
-]
+)
 
 # Questions that should ALWAYS go to chat (memory-backed), never web search
-CHAT_OVERRIDES = [
+CHAT_OVERRIDES = (
     "what is my", "what's my", "who am i", "do you remember",
     "what do you know about me", "my name", "my age", "my location",
     "i told you", "you remember", "from last time",
@@ -52,13 +50,18 @@ CHAT_OVERRIDES = [
     "how do i change", "how to change", "default model", "change model",
     "change xia", "change the model", "what model", "which model",
     "how do i switch", "how to switch",
-]
+)
 
 # Tasks that MUST use the browser tool — injected into system prompt hint
-BROWSER_TRIGGERS = [
+BROWSER_TRIGGERS = (
     "go to", "open browser", "navigate to", "browse to",
-    "leetcode", "solve problem", "click on", "fill in",
-]
+    "click on", "fill in",
+)
+
+ACTION_STARTERS = (
+    "create ", "make a ", "build ", "write a ", "generate ",
+    "run ", "execute ", "install ",
+)
 
 
 class SessionMessage:
@@ -171,11 +174,7 @@ class Session:
             return True
 
         # Imperative action starters
-        action_starters = [
-            "create ", "make a ", "build ", "write a ", "generate ",
-            "run ", "execute ", "install ",
-        ]
-        if any(lower.startswith(v) for v in action_starters):
+        if any(lower.startswith(v) for v in ACTION_STARTERS):
             return True
 
         # Long complex requests are likely tasks
@@ -207,6 +206,13 @@ class Session:
         ))
         self.history.append(Message.user(user_input))
         self.history.append(Message.assistant(result.final_answer))
+
+        if self.memory_manager:
+            try:
+                self.memory_manager.track_interaction(user_input, result.final_answer)
+            except Exception as e:
+                log.debug("Working memory track failed (agent mode): %s", e)
+
         return result
 
     def _run_chat(self, user_input: str) -> AgentResult:
@@ -216,8 +222,8 @@ class Session:
         if self.memory_manager:
             try:
                 memory_snippets = self.memory_manager.retrieve(user_input, top_k=3)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("Memory retrieval failed in chat mode: %s", e)
 
         system_prompt = self.prompt_builder.build_chat_prompt(
             memory_snippets=memory_snippets,
@@ -231,6 +237,13 @@ class Session:
 
         self.history = response.updated_history
         self.messages.append(SessionMessage(role="assistant", content=response.content))
+
+        if self.memory_manager:
+            try:
+                self.memory_manager.track_interaction(user_input, response.content)
+            except Exception as e:
+                log.debug("Working memory track failed (chat mode): %s", e)
+
         return self._wrap_simple(response.content)
 
     def _wrap_simple(self, content: str) -> AgentResult:
@@ -241,3 +254,4 @@ class Session:
             success=True,
             total_steps=1,
         )
+

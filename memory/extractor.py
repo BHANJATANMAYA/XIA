@@ -3,145 +3,177 @@ memory/extractor.py — Memory Extractor
 
 After each session, this scans the conversation and extracts
 facts worth remembering for future sessions.
-
-Instead of storing every message verbatim (wasteful and noisy),
-it distills conversations into compact, reusable facts:
-
-  "User prefers Python over JavaScript"
-  "User is building a portable AI agent called xia"
-  "User's name is Aryan, based in Mumbai"
-  "User's SSD is mounted at D:\\xia"
-  "Agent successfully created a notes.txt file using filesystem tool"
-
-These extracted memories are what get injected into future prompts —
-making xia feel like it actually knows you across sessions.
-
-Usage:
-    extractor = MemoryExtractor(llm)
-    facts = extractor.extract(conversation_messages)
-    # → ["User is building xia agent", "User prefers dark themes", ...]
 """
 
-import json
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from core.logger import get_logger
 
 log = get_logger(__name__)
 
-# Extraction prompt — asks the LLM to pull out memorable facts
 EXTRACTION_PROMPT = """You are a memory extraction system for an AI agent called xia.
 
-Given a conversation, extract facts that would be useful to remember in FUTURE conversations.
+Given a conversation, extract memories useful in future conversations.
 
-Extract facts about:
-- User's name, location, preferences, habits
-- Projects the user is working on (names, tech stack, goals)
-- Things the user explicitly asked to remember
-- Corrections the user made (e.g. "no, I prefer X over Y")
-- Important decisions or outcomes from this session
-- User's technical level and expertise areas
+For each memory, return an object with this schema:
+{
+  "text": "short factual memory",
+  "memory_type": "episodic|semantic|procedural",
+  "importance": 0.0 to 1.0,
+  "subject": "optional entity",
+  "relation": "optional relation",
+  "object": "optional entity"
+}
 
-Do NOT extract:
-- Trivial small talk
-- Facts that are only relevant to this specific session
-- Things the agent said (only what's notable about the user or their work)
-- Duplicate facts already captured
+Guidelines:
+- episodic: specific events/outcomes from this session
+- semantic: stable facts/preferences/user profile/project facts
+- procedural: step-by-step workflows, commands, or repeatable how-to knowledge
+- importance: high for durable user preferences/goals, low for trivia
+- keep text under 180 chars
+- omit subject/relation/object when not clear
 
-Respond with ONLY a JSON array of strings. Each string is one fact, max 100 chars.
-If nothing worth remembering, return an empty array.
+Do NOT extract trivial small talk.
+Do NOT return duplicate memories.
+Respond with ONLY a JSON array.
 
-Example output:
-["User's name is Aryan", "User is building a portable AI system called xia on an external SSD", "User prefers Python 3.12", "Project root is D:\\\\xia"]
-
-Conversation to extract from:
-{conversation}"""
+Conversation:
+{conversation}
+"""
 
 
 class MemoryExtractor:
-    """
-    Uses the LLM to extract memorable facts from conversations.
-    Called at the end of each session automatically.
-    """
+    """Uses the LLM to extract typed memorable facts from conversations."""
+
+    VALID_TYPES = {"episodic", "semantic", "procedural"}
 
     def __init__(self, llm=None):
-        self._llm = llm  # Injected — avoids circular imports
+        self._llm = llm
 
     def extract(self, messages: List[dict], max_facts: int = 10) -> List[str]:
-        """
-        Extract memorable facts from a list of conversation messages.
+        """Backward-compatible plain-text extraction."""
+        typed = self.extract_typed(messages, max_facts=max_facts)
+        return [item["text"] for item in typed]
 
-        Args:
-            messages: List of {"role": "user"/"assistant", "content": "..."}
-            max_facts: Maximum facts to extract per session
-
-        Returns:
-            List of fact strings ready to store in memory.
-        """
+    def extract_typed(self, messages: List[dict], max_facts: int = 10) -> List[Dict]:
+        """Extract typed memories with importance and optional relationships."""
         if not messages or not self._llm:
             return []
 
-        # Format conversation for the prompt
         conversation_text = self._format_conversation(messages)
         if not conversation_text.strip():
             return []
 
-        log.info("Extracting memories from %d messages...", len(messages))
+        log.info("Extracting typed memories from %d messages...", len(messages))
 
         try:
             result = self._llm.chat_json(
-                EXTRACTION_PROMPT.format(conversation=conversation_text[:4000]),
+                EXTRACTION_PROMPT.format(conversation=conversation_text[:5000]),
             )
+            items = self._normalize_result(result)
 
-            # Handle both direct list and wrapped dict
-            if isinstance(result, list):
-                facts = result
-            elif isinstance(result, dict):
-                # Model might return {"facts": [...]} or {"memories": [...]}
-                facts = (
-                    result.get("facts") or
-                    result.get("memories") or
-                    result.get("items") or
-                    []
-                )
-            else:
-                facts = []
+            cleaned: List[Dict] = []
+            seen = set()
+            for item in items:
+                parsed = self._coerce_item(item)
+                if not parsed:
+                    continue
 
-            # Validate and clean
-            clean_facts = []
-            for fact in facts[:max_facts]:
-                if isinstance(fact, str) and fact.strip():
-                    clean_facts.append(fact.strip()[:200])
+                key = parsed["text"].strip().lower()
+                if key in seen:
+                    continue
+                seen.add(key)
 
-            log.info("Extracted %d memories from session", len(clean_facts))
-            return clean_facts
+                cleaned.append(parsed)
+                if len(cleaned) >= max_facts:
+                    break
+
+            log.info("Extracted %d typed memories", len(cleaned))
+            return cleaned
 
         except Exception as e:
-            log.error("Memory extraction failed: %s", e)
+            log.error("Typed memory extraction failed: %s", e)
             return []
 
     def extract_from_session(self, session) -> List[str]:
-        """
-        Convenience method — extract directly from a Session object.
-        Called automatically at session end.
-        """
+        """Backward-compatible extraction directly from Session."""
+        return [item["text"] for item in self.extract_typed_from_session(session)]
+
+    def extract_typed_from_session(self, session) -> List[Dict]:
+        """Typed extraction directly from Session."""
         if not session or not session.messages:
             return []
 
-        messages = [
-            {"role": m.role, "content": m.content}
-            for m in session.messages
-        ]
-        return self.extract(messages)
+        messages = [{"role": m.role, "content": m.content} for m in session.messages]
+        return self.extract_typed(messages)
+
+    def _normalize_result(self, result) -> List:
+        if isinstance(result, list):
+            return result
+
+        if isinstance(result, dict):
+            return (
+                result.get("facts") or
+                result.get("memories") or
+                result.get("items") or
+                []
+            )
+
+        return []
+
+    def _coerce_item(self, item) -> Optional[Dict]:
+        if isinstance(item, str):
+            text = item.strip()
+            if not text:
+                return None
+            return {
+                "text": text[:220],
+                "memory_type": "semantic",
+                "importance": 0.55,
+            }
+
+        if not isinstance(item, dict):
+            return None
+
+        text = str(item.get("text", "")).strip()
+        if not text:
+            return None
+
+        memory_type = str(item.get("memory_type", "semantic")).strip().lower()
+        if memory_type not in self.VALID_TYPES:
+            memory_type = "semantic"
+
+        try:
+            importance = float(item.get("importance", 0.55))
+        except Exception:
+            importance = 0.55
+        importance = max(0.0, min(1.0, importance))
+
+        record = {
+            "text": text[:220],
+            "memory_type": memory_type,
+            "importance": importance,
+        }
+
+        subject = str(item.get("subject", "")).strip()
+        relation = str(item.get("relation", "")).strip()
+        obj = str(item.get("object", "")).strip()
+
+        if subject and relation and obj:
+            record["subject"] = subject[:120]
+            record["relation"] = relation[:120]
+            record["object"] = obj[:120]
+
+        return record
 
     def _format_conversation(self, messages: List[dict]) -> str:
         lines = []
         for msg in messages:
             role = msg.get("role", "unknown").upper()
             content = msg.get("content", "").strip()
-            if content:
-                # Truncate very long messages
-                if len(content) > 500:
-                    content = content[:500] + "..."
-                lines.append(f"{role}: {content}")
+            if not content:
+                continue
+            if len(content) > 600:
+                content = content[:600] + "..."
+            lines.append(f"{role}: {content}")
         return "\n".join(lines)

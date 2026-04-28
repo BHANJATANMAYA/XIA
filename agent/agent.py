@@ -47,6 +47,7 @@ class Agent:
 
         steps: List[AgentStep] = []
         tools_used: List[str] = []
+        tools_seen = set()
         history: List[Message] = []
 
         # ── Auto-route to best model for this task ─────────────────────────
@@ -59,7 +60,7 @@ class Agent:
                 self.llm.temperature = self.router.pick_temperature(profile)
 
         # ── Build system prompt with skills + memory ───────────────────────
-        tool_names    = self._get_tool_descriptions()
+        tool_names      = self._get_tool_names()
         tool_schemas  = self._get_tool_schemas()
         memory_snippets = self._retrieve_memory(task)
         skill_context   = self._retrieve_skills(task)
@@ -127,23 +128,25 @@ class Agent:
                 self._emit(act_step)
 
                 tool_result = self._execute_tool(tool_call)
-                act_step.tool_result = str(tool_result)
+                tool_result_text = str(tool_result)
+                act_step.tool_result = tool_result_text
                 act_step.status = StepStatus.DONE if tool_result.success else StepStatus.FAILED
 
-                if tool_call.name not in tools_used:
+                if tool_call.name not in tools_seen:
+                    tools_seen.add(tool_call.name)
                     tools_used.append(tool_call.name)
 
                 observe_step = AgentStep(
                     step_type=StepType.OBSERVE,
-                    content=str(tool_result)[:500],
+                    content=tool_result_text[:500],
                 )
                 steps.append(observe_step)
                 self._emit(observe_step)
 
                 observe_message = self.prompt_builder.build_tool_result_prompt(
                     tool_name=tool_call.name,
-                    tool_input=tool_call.input,
-                    tool_result=str(tool_result),
+                    tool_result=tool_result_text,
+                    available_tools=tool_names,
                 )
 
                 history.append(Message.user(user_message))
@@ -211,10 +214,10 @@ class Agent:
             log.error("Tool execution error: %s", e)
             return ToolResult(tool_name=tool_call.name, output="", success=False, error=str(e))
 
-    def _get_tool_descriptions(self) -> List[str]:
+    def _get_tool_names(self) -> List[str]:
         if self.tool_registry is None:
             return ["(No tools available)"]
-        return self.tool_registry.describe_all()
+        return self.tool_registry.list_names()
 
     def _get_tool_schemas(self) -> str:
         if self.tool_registry is None:
@@ -267,3 +270,4 @@ class Agent:
             "final_answer": decision.final_answer,
         }
         return json.dumps(data, indent=2)
+

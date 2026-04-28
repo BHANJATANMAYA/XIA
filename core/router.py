@@ -9,7 +9,7 @@ log = get_logger(__name__)
 
 PROFILES: Dict[str, dict] = {
     "coding": {
-        "description": "Best for writing code, debugging, algorithms, LeetCode",
+        "description": "Best for writing code, debugging, and algorithm-heavy tasks",
         "preferred":   ["qwen2.5-coder", "qwen2.5-coder:7b", "deepseek-coder",
                         "codellama", "starcoder2"],
         "fallback":    "mistral",
@@ -40,7 +40,7 @@ PROFILES: Dict[str, dict] = {
 
 CODING_SIGNALS = [
     "code", "function", "class", "algorithm", "debug", "fix", "bug",
-    "implement", "write a", "leetcode", "solve", "python", "javascript",
+    "implement", "write a", "python", "javascript",
     "typescript", "rust", "go ", "java", "c++", "sql", "api", "script",
     "program", "error", "exception", "syntax", "compile", "refactor",
     "test", "unit test", "complexity", "time complexity", "space complexity",
@@ -62,6 +62,10 @@ SMART_SIGNALS = [
     "research", "comprehensive", "detailed explanation",
 ]
 
+CODING_SIGNALS_T = tuple(CODING_SIGNALS)
+FAST_SIGNALS_T = tuple(FAST_SIGNALS)
+SMART_SIGNALS_T = tuple(SMART_SIGNALS)
+
 
 class ModelRouter:
     def __init__(self, llm):
@@ -70,19 +74,20 @@ class ModelRouter:
 
     def pick(self, task: str) -> Tuple[str, str]:
         available = self._get_available()
+        available_clean = [a.replace(":latest", "") for a in available]
         profile_name = self._detect_profile(task)
         profile = PROFILES[profile_name]
 
         for model in profile["preferred"]:
-            for avail in available:
-                clean = avail.replace(":latest", "")
-                if clean == model or clean.startswith(model.split(":")[0]):
-                    log.debug("Router: profile=%s → model=%s", profile_name, avail)
+            model_base = model.split(":")[0]
+            for avail, clean in zip(available, available_clean):
+                if clean == model or clean.startswith(model_base):
+                    log.debug("Router: profile=%s -> model=%s", profile_name, avail)
                     return avail, profile_name
 
         fallback = profile["fallback"]
-        for avail in available:
-            if avail.replace(":latest", "").startswith(fallback):
+        for avail, clean in zip(available, available_clean):
+            if clean.startswith(fallback):
                 return avail, profile_name
 
         return self._llm.model, profile_name
@@ -100,10 +105,11 @@ class ModelRouter:
         lines = []
         available = self._get_available()
         for name, profile in PROFILES.items():
+            preferred_bases = [m.split(":")[0] for m in profile["preferred"]]
             best = next(
-                (m for m in profile["preferred"]
+                (a for base in preferred_bases
                  for a in available
-                 if a.replace(":latest","").startswith(m.split(":")[0])),
+                 if a.startswith(base)),
                 profile["fallback"] + " (fallback)"
             )
             lines.append(f"  {name:<10} {profile['description']}")
@@ -115,9 +121,9 @@ class ModelRouter:
 
     def _detect_profile(self, task: str) -> str:
         lower = task.lower()
-        coding_score = sum(1 for s in CODING_SIGNALS if s in lower)
-        fast_score   = sum(1 for s in FAST_SIGNALS   if s in lower)
-        smart_score  = sum(1 for s in SMART_SIGNALS  if s in lower)
+        coding_score = sum(1 for s in CODING_SIGNALS_T if s in lower)
+        fast_score   = sum(1 for s in FAST_SIGNALS_T if s in lower)
+        smart_score  = sum(1 for s in SMART_SIGNALS_T if s in lower)
 
         scores = {
             "coding":  coding_score * 3,
@@ -139,3 +145,4 @@ class ModelRouter:
         except Exception:
             self._available = [self._llm.model]
         return self._available
+

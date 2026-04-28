@@ -126,6 +126,6 @@ but the venv, models, memories, and skills all live on the SSD and travel with y
 
 To use a different Python version:
 1. Download the new installer to `installers\python-X.X.X-amd64.exe`
-2. Update the filename reference in `launch.bat` (line: `set "XIA_PY_INSTALLER=..."`
+2. Update the filename reference in `launch.bat` line: `set "XIA_PY_INSTALLER=..."`
 3. Delete `.venv` folder — it will rebuild with the new Python
 4. Run `launch.bat`

@@ -27,17 +27,13 @@ Agent calls this as:
     "tool": "browser",
     "input": {
       "action": "navigate",
-      "url": "https://leetcode.com/problems/two-sum"
+      "url": "https://example.com"
     }
   }
 """
 
-import base64
 import time
-from pathlib import Path
-from typing import Optional
 
-from core.config import cfg
 from core.logger import get_logger
 from core.paths import PATHS
 from tools.base import BaseTool, ToolParam, ToolResult, ToolSchema
@@ -313,3 +309,4 @@ class BrowserTool(BaseTool):
                 self._close()
         except Exception:
             pass
+

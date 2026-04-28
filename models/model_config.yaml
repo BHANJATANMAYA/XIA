@@ -10,7 +10,7 @@ models:
   qwen2.5-coder:
     context_length: 32768
     recommended_for: coding
-    notes: "Best for code, algorithms, LeetCode. Pull: ollama pull qwen2.5-coder"
+    notes: "Best for code and algorithm-heavy tasks. Pull: ollama pull qwen2.5-coder"
 
   qwen2.5-coder:7b:
     context_length: 32768
@@ -56,3 +56,4 @@ auto_routing:
 system_prompt: |
   You are xia, an AI agent built by Tanmay.
   Be direct, helpful, and honest.
+

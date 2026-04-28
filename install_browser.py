@@ -2,7 +2,7 @@
 install_browser.py — Install Playwright and Chromium
 
 Run this ONCE before using browser-based features:
-    .venv\Scripts\python install_browser.py
+    .venv\\Scripts\\python install_browser.py
 
 This installs:
   1. playwright Python package (into venv)
@@ -15,7 +15,6 @@ from pathlib import Path
 
 root   = Path(__file__).parent
 venv_py  = root / ".venv" / "Scripts" / "python.exe"
-venv_pip = root / ".venv" / "Scripts" / "pip.exe"
 
 def run(cmd):
     print(f"  Running: {' '.join(cmd)}")
@@ -71,10 +70,11 @@ def main():
     print("  Browser tool ready!")
     print("  Launch xia and try:")
     print("    'open google.com and search for Python tutorials'")
-    print("    'solve leetcode problem two-sum'")
+    print("    'open example.com and summarize the page'")
     print("=" * 50)
     print()
 
 
 if __name__ == "__main__":
     main()
+

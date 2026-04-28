@@ -79,7 +79,7 @@ TOOL_RESULT_TEMPLATE = """Tool '{tool_name}' returned:
 
 Continue in JSON format. If you have the answer → final_answer now.
 If a command timed out → tell the user to run it directly in PowerShell, do not try alternatives.
-Only available tools: filesystem, terminal, search, fetch, browser, leetcode."""
+Only available tools: {available_tools}."""
 
 
 class PromptBuilder:
@@ -109,10 +109,16 @@ class PromptBuilder:
             tool_schemas=tool_schemas or "(No tools available)",
         )
 
-    def build_tool_result_prompt(self, tool_name: str, tool_input: dict, tool_result: str) -> str:
+    def build_tool_result_prompt(
+        self,
+        tool_name: str,
+        tool_result: str,
+        available_tools: Optional[List[str]] = None,
+    ) -> str:
         return TOOL_RESULT_TEMPLATE.format(
             tool_name=tool_name,
             tool_result=tool_result[0:2000],
+            available_tools=", ".join(available_tools) if available_tools else "none",
         )
 
     def _now(self) -> str:
@@ -122,3 +128,4 @@ class PromptBuilder:
         if not snippets:
             return "No relevant memories from past sessions."
         return "From past sessions:\n" + "\n".join("  - " + s for s in snippets)
+

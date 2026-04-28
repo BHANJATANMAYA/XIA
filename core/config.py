@@ -50,6 +50,17 @@ class MemoryConfig:
     embedding_model: str = "all-MiniLM-L6-v2"
     max_results: int = 5
     similarity_threshold: float = 0.75
+    working_memory_size: int = 8
+    cache_ttl_seconds: int = 300
+    rerank_candidates: int = 20
+    relevance_weight: float = 0.60
+    recency_weight: float = 0.25
+    importance_weight: float = 0.15
+    default_importance: float = 0.50
+    default_memory_type: str = "semantic"
+    typed_extraction_enabled: bool = True
+    graph_enabled: bool = True
+    graph_max_results: int = 3
 
 
 @dataclass
@@ -186,3 +197,5 @@ def load_config() -> Config:
 
 # Module-level singleton
 cfg: Config = load_config()
+
+

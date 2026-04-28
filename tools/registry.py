@@ -11,15 +11,22 @@ from core.logger import get_logger
 log = get_logger(__name__)
 
 
+def _normalize_tool_name(name: str) -> str:
+    return name.lower().replace("_", "").replace("-", "").replace(" ", "")
+
+
 class ToolRegistry:
     def __init__(self):
         self._tools: Dict[str, BaseTool] = {}
+        self._normalized_tools: Dict[str, str] = {}
 
     def register(self, tool: BaseTool):
         if not tool.enabled:
             log.info("Tool '%s' disabled — skipping", tool.name)
             return
+
         self._tools[tool.name] = tool
+        self._normalized_tools[_normalize_tool_name(tool.name)] = tool.name
         log.info("Tool registered: %s", tool.name)
 
     def get(self, name: str) -> Optional[BaseTool]:
@@ -42,7 +49,7 @@ class ToolRegistry:
         if tool is None:
             fuzzy = self._fuzzy_match(tool_call.name)
             if fuzzy:
-                log.warning("Fuzzy match: '%s' → '%s'", tool_call.name, fuzzy)
+                log.warning("Fuzzy match: '%s' -> '%s'", tool_call.name, fuzzy)
                 tool = self._tools[fuzzy]
             else:
                 available = ", ".join(self._tools.keys()) or "none"
@@ -64,11 +71,14 @@ class ToolRegistry:
         )
 
     def _fuzzy_match(self, name: str) -> Optional[str]:
-        name_lower = name.lower().replace("_", "").replace("-", "").replace(" ", "")
-        for registered in self._tools:
-            reg_lower = registered.lower().replace("_", "").replace("-", "")
-            if name_lower == reg_lower or name_lower in reg_lower or reg_lower in name_lower:
-                return registered
+        normalized = _normalize_tool_name(name)
+        exact = self._normalized_tools.get(normalized)
+        if exact:
+            return exact
+
+        for normalized_registered, original_name in self._normalized_tools.items():
+            if normalized in normalized_registered or normalized_registered in normalized:
+                return original_name
         return None
 
     def __repr__(self) -> str:
@@ -82,7 +92,6 @@ def build_default_registry(llm=None) -> "ToolRegistry":
     from tools.search import SearchTool
     from tools.fetch import FetchTool
     from tools.browser import BrowserTool
-    from tools.leetcode import LeetCodeTool
     from core.config import cfg
 
     registry = ToolRegistry()
@@ -95,13 +104,8 @@ def build_default_registry(llm=None) -> "ToolRegistry":
 
     registry.register(SearchTool())
     registry.register(FetchTool())
-
-    # Browser tool — shared instance so LeetCode reuses the same browser session
-    browser = BrowserTool(headless=False)
-    registry.register(browser)
-
-    # LeetCode tool — gets the browser and LLM injected
-    registry.register(LeetCodeTool(browser_tool=browser, llm=llm))
+    registry.register(BrowserTool(headless=False))
 
     log.info("Tool registry built: %s", registry.list_names())
     return registry
+

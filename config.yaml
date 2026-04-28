@@ -32,6 +32,17 @@ memory:
   embedding_model: all-MiniLM-L6-v2   # Runs locally, ~90MB
   max_results: 5                       # How many memories to retrieve per query
   similarity_threshold: 0.40
+  working_memory_size: 8               # In-RAM short-term memory window
+  cache_ttl_seconds: 300               # Fast-cache TTL for repeated queries
+  rerank_candidates: 20                # Vector candidates before re-rank
+  relevance_weight: 0.60               # Score mix: relevance + recency + importance
+  recency_weight: 0.25
+  importance_weight: 0.15
+  default_importance: 0.50
+  default_memory_type: semantic
+  typed_extraction_enabled: true       # Enable typed memory extraction
+  graph_enabled: true                  # Enable local memory relationship graph
+  graph_max_results: 3                 # Graph hints returned per query
 
 # ─────────────────────────────────────────────
 # Skills settings
@@ -81,3 +92,5 @@ logging:
   log_to_file: true
   max_log_size_mb: 10
   backup_count: 3
+
+

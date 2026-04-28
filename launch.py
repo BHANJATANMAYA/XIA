@@ -114,19 +114,33 @@ def ensure_dependencies():
         return
 
     info("Installing dependencies (this may take a few minutes the first time)...")
-    print()  # blank line before pip output
-    result = subprocess.run([
-        str(VENV_PY), "-m", "pip", "install",
-        "-r", str(REQ_FILE),
-        "--progress-bar", "on",
-        "--disable-pip-version-check",
-    ])
-    print()  # blank line after pip output
+    
+    import tempfile
+    with tempfile.TemporaryFile(mode='w+', encoding='utf-8') as temp_err:
+        process = subprocess.Popen([
+            str(VENV_PY), "-m", "pip", "install",
+            "-r", str(REQ_FILE),
+            "--disable-pip-version-check",
+            "--quiet",
+        ], stdout=subprocess.DEVNULL, stderr=temp_err)
+        
+        spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        i = 0
+        while process.poll() is None:
+            print(f"\r  {C.CYAN}[{spinner[i % len(spinner)]}]{C.RESET}  Fetching packages...", end="", flush=True)
+            i += 1
+            time.sleep(0.1)
+            
+        print("\r" + " " * 60 + "\r", end="", flush=True)
 
-    if result.returncode != 0:
-        err("Dependency install failed.")
-        err(f'Try manually: "{VENV_PY}" -m pip install -r "{REQ_FILE}"')
-        sys.exit(1)
+        if process.returncode != 0:
+            temp_err.seek(0)
+            stderr_data = temp_err.read()
+            err("Dependency install failed.")
+            err(f'Try manually: "{VENV_PY}" -m pip install -r "{REQ_FILE}"')
+            if stderr_data.strip():
+                print(f"\n{C.RED}Pip Error:{C.RESET}\n{stderr_data.strip()}")
+            sys.exit(1)
 
     STAMP.write_text(current)
     ok("Dependencies installed.")
