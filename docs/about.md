@@ -91,7 +91,7 @@ Max iterations per task: configurable (default: 10). Max retries on tool failure
 
 ```
 xia/
-├── launch.bat              # Entry point — double-click to start
+├── run.bat                 # Entry point — double-click to start
 ├── launch.py               # Bootstrap: venv, deps, GPU detect, Ollama, model pull
 ├── main.py                 # Application entry point
 ├── config.yaml             # All configuration (LLM, agent, memory, skills, tools)
@@ -409,7 +409,7 @@ logging:   - level (INFO), log_to_file, max_log_size_mb (10), backup_count (3)
 
 ```bash
 # 1. Plug in your SSD
-# 2. Double-click launch.bat
+# 2. Double-click run.bat
 # 3. That's it — XIA handles everything else
 
 # Optional: add API keys for web search

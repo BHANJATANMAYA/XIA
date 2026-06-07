@@ -23,12 +23,13 @@ class Renderer:
     def __init__(self):
         self.console = Console(theme=XIA_THEME, highlight=False)
         self._step_count = 0
+        self._status = None
 
     # ── Startup ────────────────────────────────────────────────────────────
 
     def print_banner(self, model: str, root: str, mem_count: int, skill_count: int):
         self.console.print()
-        self.console.rule("[xia.name]  x i a  [/xia.name]", style="dim cyan")
+        self.console.rule("[xia.name]✦  x i a  ✦[/xia.name]", style="dim cyan")
         self.console.print()
         table = Table(box=None, show_header=False, padding=(0, 2))
         table.add_column(style="ui.label", width=14)
@@ -67,10 +68,15 @@ class Renderer:
 
     def print_thinking_start(self):
         self._step_count = 0
-        self.console.print(
-            "  [ui.dim]● thinking…[/ui.dim]",
-            end="\r",
-        )
+        if self._status:
+            self._status.stop()
+        self._status = self.console.status("  [ui.dim]thinking…[/ui.dim]", spinner="dots", spinner_style="ui.dim")
+        self._status.start()
+
+    def print_thinking_stop(self):
+        if self._status:
+            self._status.stop()
+            self._status = None
 
     def print_step(self, step):
         """Print a single agent step as it happens."""
@@ -112,27 +118,23 @@ class Renderer:
     # ── Final answer ───────────────────────────────────────────────────────
 
     def print_answer(self, answer: str, tools_used: Optional[List[str]] = None):
+        self.print_thinking_stop()
         self.console.print()
 
-        has_markdown = any(c in answer for c in ["**", "##", "```", "\n- ", "\n1. "])
-
-        if has_markdown:
-            self.console.print(
-                Panel(
-                    Markdown(answer),
-                    border_style="dim cyan",
-                    padding=(0, 2),
-                    box=box.ROUNDED,
-                    title="[xia.name]xia[/xia.name]",
-                    title_align="left",
-                )
+        self.console.print(
+            Panel(
+                Markdown(answer),
+                border_style="dim cyan",
+                padding=(1, 2),
+                box=box.ROUNDED,
+                title="[xia.name]✦ xia ✦[/xia.name]",
+                title_align="left",
             )
-        else:
-            self.console.print(f"  [xia.name]xia[/xia.name]  {answer}")
+        )
 
         if tools_used:
             self.console.print(
-                f"\n  [ui.dim]used: {', '.join(tools_used)}[/ui.dim]"
+                f"\n  [ui.dim]tools used: {', '.join(tools_used)}[/ui.dim]"
             )
 
         self.console.print()

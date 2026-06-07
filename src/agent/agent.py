@@ -87,12 +87,14 @@ class Agent:
             self._emit(think_step)
 
             if decision.plan and iteration == 0:
-                plan_step = AgentStep(
-                    step_type=StepType.PLAN,
-                    content="\n".join(f"  {i+1}. {s}" for i, s in enumerate(decision.plan)),
-                )
-                steps.append(plan_step)
-                self._emit(plan_step)
+                plan_text = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(decision.plan) if s)
+                if plan_text.strip():
+                    plan_step = AgentStep(
+                        step_type=StepType.PLAN,
+                        content=plan_text,
+                    )
+                    steps.append(plan_step)
+                    self._emit(plan_step)
 
             # ── Final answer ───────────────────────────────────────────────
             if decision.is_done:

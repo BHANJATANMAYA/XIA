@@ -8,23 +8,24 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-
+*.ipynb_checkpoints/
+.pytest_cache/
 
 # Personal data
 workspace/
 logs/
+notes.txt
 
 # ── Data (large, machine-generated) ───────────────────────────
-data/embeddings/
-data/conversations/
-data/skills_store/
-logs/
+data/
 
 # ── Models (stored on SSD but not in git) ─────────────────────
 models/*.bin
 models/*.gguf
-
 models/ollama/
+models/embeddings_cache/
+models/hf_home/
+models/playwright/
 
 # ── OS files ──────────────────────────────────────────────────
 .DS_Store
@@ -38,3 +39,4 @@ desktop.ini
 
 # ── Installers (large, machine-generated) ─────────────────────
 installers/
+

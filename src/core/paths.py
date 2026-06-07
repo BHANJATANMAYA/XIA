@@ -11,7 +11,7 @@ def _find_xia_root() -> Path:
     if env_root := os.environ.get("XIA_ROOT"):
         return Path(env_root).resolve()
     current = Path(__file__).resolve()
-    for parent in [current.parent, current.parent.parent]:
+    for parent in [current] + list(current.parents):
         if (parent / "config.yaml").exists():
             return parent
     return Path.cwd()
@@ -56,19 +56,19 @@ class Paths:
     # ── Module dirs ────────────────────────────────────────────────────────
     @property
     def agent_dir(self) -> Path:
-        return self.root / "agent"
+        return self.root / "src" / "agent"
 
     @property
     def tools_dir(self) -> Path:
-        return self.root / "tools"
+        return self.root / "src" / "tools"
 
     @property
     def memory_dir(self) -> Path:
-        return self.root / "memory"
+        return self.root / "src" / "memory"
 
     @property
     def skills_dir(self) -> Path:
-        return self.root / "skills"
+        return self.root / "src" / "skills"
 
     @property
     def models_dir(self) -> Path:
@@ -112,3 +112,11 @@ class Paths:
 
 
 PATHS = Paths()
+
+# Force environment variables to SSD paths for zero host footprint and isolation
+os.environ["OLLAMA_MODELS"] = str(PATHS.models_dir / "ollama")
+os.environ["OLLAMA_HOME"] = str(PATHS.models_dir / "ollama")
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(PATHS.models_dir / "playwright")
+os.environ["HF_HOME"] = str(PATHS.models_dir / "hf_home")
+os.environ["PIP_NO_CACHE_DIR"] = "1"
+

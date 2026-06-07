@@ -148,8 +148,44 @@ def ensure_dependencies():
 
 # -- Step 3: Host detection -----------------------------------------------------
 
+HOST_CACHE = ROOT / "data" / ".host_cache.json"
+
+
+def _load_host_cache() -> dict | None:
+    """Load cached host detection results if they match this machine."""
+    try:
+        if HOST_CACHE.exists():
+            import platform
+            data = json.loads(HOST_CACHE.read_text(encoding="utf-8"))
+            if data.get("hostname") == platform.node():
+                return data
+    except Exception:
+        pass
+    return None
+
+
+def _save_host_cache(host: dict):
+    """Cache host detection results keyed by hostname."""
+    try:
+        import platform
+        host["hostname"] = platform.node()
+        HOST_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        HOST_CACHE.write_text(json.dumps(host, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def detect_host() -> dict:
     step("Step 3 - Host detection")
+
+    # Try loading from cache first (skips wmic + nvidia-smi calls)
+    cached = _load_host_cache()
+    if cached:
+        gpu_str = cached.get("gpu_name", "CPU only") if cached.get("has_gpu") else "CPU only"
+        ok(f"{cached['ram_gb']}GB RAM  |  {cached['cpu_cores']} cores  |  {gpu_str}")
+        _apply_host_env(cached)
+        return cached
+
     host = {"cpu_cores": os.cpu_count() or 1, "ram_gb": 8.0, "has_gpu": False}
 
     # RAM
@@ -180,14 +216,18 @@ def detect_host() -> dict:
     gpu_str = host.get("gpu_name", "CPU only") if host["has_gpu"] else "CPU only"
     ok(f"{host['ram_gb']}GB RAM  |  {host['cpu_cores']} cores  |  {gpu_str}")
 
-    # Set Ollama env vars based on host
+    _apply_host_env(host)
+    _save_host_cache(host)
+    return host
+
+
+def _apply_host_env(host: dict):
+    """Set Ollama env vars based on host capabilities."""
     threads = max(1, host["cpu_cores"] - 2)
     os.environ["OLLAMA_NUM_THREADS"] = str(threads)
-    if host["has_gpu"]:
+    if host.get("has_gpu"):
         os.environ["OLLAMA_GPU_LAYERS"] = "999"
-        info(f"GPU detected - enabling GPU acceleration")
-
-    return host
+        info("GPU detected - enabling GPU acceleration")
 
 
 # -- Step 4: Ollama -------------------------------------------------------------
@@ -202,6 +242,14 @@ def server_running() -> bool:
 
 def ensure_ollama():
     step("Step 4 - Ollama")
+
+    if not shutil.which("ollama"):
+        local_bin = ROOT / "models" / "ollama" / "bin"
+        default_install = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama"
+        if (local_bin / "ollama.exe").exists():
+            os.environ["PATH"] = str(local_bin) + os.pathsep + os.environ.get("PATH", "")
+        elif (default_install / "ollama.exe").exists():
+            os.environ["PATH"] = str(default_install) + os.pathsep + os.environ.get("PATH", "")
 
     if not shutil.which("ollama"):
         print()
@@ -222,17 +270,19 @@ def ensure_ollama():
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
-        for i in range(20):
-            time.sleep(1)
+        # Fast poll: check immediately, then 0.3s intervals (max ~4.5s)
+        for i in range(15):
             if server_running():
-                ok("Ollama server started.")
+                ok(f"Ollama server started ({i * 0.3:.1f}s).")
                 break
-            print(f"\r  Waiting... {i+1}s", end="", flush=True)
+            time.sleep(0.3)
         else:
-            print()
             warn("Ollama slow to start - xia will retry on first request.")
     else:
         ok("Ollama server running.")
+
+    # Signal health check that Ollama is verified
+    os.environ["XIA_OLLAMA_VERIFIED"] = "1"
 
     # Pull model if needed
     model = read_config("llm.model", "mistral")
@@ -248,8 +298,17 @@ def _install_ollama():
     except Exception as e:
         err(f"Download failed: {e}")
         sys.exit(1)
-    info("Running installer (follow the prompts)...")
-    subprocess.run([str(installer)])
+    info("Running installer silently (please wait)...")
+    try:
+        subprocess.run(f'start /wait "" "{installer}" /S', shell=True, check=True)
+    except Exception as e:
+        err(f"Failed to run installer: {e}")
+        sys.exit(1)
+
+    default_install = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama"
+    if (default_install / "ollama.exe").exists():
+        os.environ["PATH"] = str(default_install) + os.pathsep + os.environ.get("PATH", "")
+
     if shutil.which("ollama"):
         ok("Ollama installed.")
     else:
@@ -298,7 +357,7 @@ def _progress(count, block, total):
 def run_health_check():
     step("Step 5 - Health check")
     try:
-        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / "src"))
         from core.health import HealthChecker
         checker = HealthChecker()
         ok_flag, issues = checker.run()

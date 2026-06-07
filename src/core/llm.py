@@ -32,6 +32,7 @@ Usage:
 """
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Generator, List, Optional
@@ -97,11 +98,19 @@ class StreamChunk:
 
 # ── System prompt ──────────────────────────────────────────────────────────────
 
-DEFAULT_SYSTEM_PROMPT = """You are xia, a portable personal AI agent running entirely on a local machine.
-You are intelligent, concise, and always helpful.
-You reason carefully before answering.
-When you don't know something, you say so clearly.
-When given a task that requires tools, you will use them systematically."""
+DEFAULT_SYSTEM_PROMPT = """You are xia. You are NOT Mistral, ChatGPT, or Claude. Never describe your own personality. Just respond to what the user said."""
+
+
+def strip_thinking(text: str) -> str:
+    """Remove <think>...</think> blocks from the response text."""
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    if "<think>" in cleaned:
+        parts = cleaned.split("</think>", 1)
+        if len(parts) > 1:
+            cleaned = parts[1]
+        else:
+            cleaned = re.sub(r"<think>.*", "", cleaned, flags=re.DOTALL)
+    return cleaned.strip()
 
 
 # ── LLM Client ────────────────────────────────────────────────────────────────
@@ -133,6 +142,8 @@ class LLMClient:
         self.timeout = cfg.llm.timeout
 
         self._client = httpx.Client(timeout=self.timeout)
+        self._tags_cache = None  # Cached /api/tags response for startup
+        self._tags_cache_time = 0
         log.info("LLMClient initialised: model=%s base_url=%s", self.model, self.base_url)
 
     # ── Public API ─────────────────────────────────────────────────────────
@@ -166,6 +177,7 @@ class LLMClient:
         elapsed_ms = int((time.monotonic() - start) * 1000)
 
         content = raw.get("message", {}).get("content", "")
+        content = strip_thinking(content)
         usage = raw.get("usage", {})
 
         # Build updated history
@@ -272,10 +284,7 @@ class LLMClient:
     def is_available(self) -> bool:
         """Check if the Ollama server is reachable and the model is loaded."""
         try:
-            resp = self._client.get(f"{self.base_url}/api/tags", timeout=3)
-            if resp.status_code != 200:
-                return False
-            names = [m["name"] for m in resp.json().get("models", [])]
+            names = self._get_tags()
             model_base = self.model.split(":")[0]
             return any(n == self.model or n.split(":")[0] == model_base for n in names)
         except Exception:
@@ -284,12 +293,21 @@ class LLMClient:
     def list_models(self) -> List[str]:
         """Return list of locally available model names."""
         try:
-            resp = self._client.get(f"{self.base_url}/api/tags", timeout=5)
-            resp.raise_for_status()
-            return [m["name"] for m in resp.json().get("models", [])]
+            return list(self._get_tags())
         except Exception as e:
             log.warning("Could not list models: %s", e)
             return []
+
+    def _get_tags(self) -> List[str]:
+        """Fetch and cache the model tag list from Ollama."""
+        now = time.monotonic()
+        if self._tags_cache is not None and (now - self._tags_cache_time) < 10:
+            return self._tags_cache
+        resp = self._client.get(f"{self.base_url}/api/tags", timeout=3)
+        resp.raise_for_status()
+        self._tags_cache = [m["name"] for m in resp.json().get("models", [])]
+        self._tags_cache_time = now
+        return self._tags_cache
 
     def switch_model(self, model_name: str):
         """Hot-swap to a different model without recreating the client."""
@@ -312,7 +330,8 @@ class LLMClient:
 
         messages = [Message.system(sys_content)]
         if history:
-            messages.extend(history)
+            # Keep only the last 6 messages of history to minimize latency
+            messages.extend(history[-6:])
         messages.append(Message.user(user_message))
         return messages
 

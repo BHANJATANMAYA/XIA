@@ -8,7 +8,7 @@ on any target machine.
 ## Concept
 
 The `installers\` folder on your SSD acts as a local package cache.
-The first time you run `launch.bat` on a machine with internet, it downloads
+The first time you run `run.bat` on a machine with internet, it downloads
 Python and Ollama and saves them there. Every machine after that uses the
 cached files — zero internet required.
 
@@ -25,10 +25,10 @@ xia\
 
 ## Option A — Automatic caching (easiest)
 
-1. Run `launch.bat` once on any machine with internet
+1. Run `run.bat` once on any machine with internet
 2. It downloads and installs everything, saving installers to `installers\`
 3. Eject the SSD
-4. On any other machine — plug in and run `launch.bat`
+4. On any other machine — plug in and run `run.bat`
 5. No internet needed. Everything installs from the SSD.
 
 ---
@@ -48,7 +48,7 @@ D:\xia\installers\python-3.12.4-amd64.exe   ← must be exact filename
 D:\xia\installers\OllamaSetup.exe            ← must be exact filename
 ```
 
-Run `launch.bat` — no internet will be used.
+Run `run.bat` — no internet will be used.
 
 ---
 
@@ -98,7 +98,7 @@ Option A - Copy installer to SSD (Recommended):
      https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe
   2. Place it here:
      D:\xia\installers\python-3.12.4-amd64.exe
-  3. Re-run launch.bat
+  3. Re-run run.bat
 ```
 
 It will never silently fail — always tells you exactly what to do.
@@ -126,6 +126,6 @@ but the venv, models, memories, and skills all live on the SSD and travel with y
 
 To use a different Python version:
 1. Download the new installer to `installers\python-X.X.X-amd64.exe`
-2. Update the filename reference in `launch.bat` line: `set "XIA_PY_INSTALLER=..."`
+2. Update the filename reference in `run.bat` line: `set "XIA_PY_INSTALLER=..."`
 3. Delete `.venv` folder — it will rebuild with the new Python
-4. Run `launch.bat`
+4. Run `run.bat`

@@ -52,8 +52,6 @@ models:
 auto_routing:
   enabled: true
 
-# System prompt used across all models
-system_prompt: |
-  You are xia, an AI agent built by Tanmay.
-  Be direct, helpful, and honest.
+# System prompt is defined in core/prompt.py (single source of truth).
+# Do not add a system_prompt here — it will NOT be loaded by any code.
 

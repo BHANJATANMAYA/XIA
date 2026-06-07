@@ -2,7 +2,7 @@
 install_browser.py — Install Playwright and Chromium
 
 Run this ONCE before using browser-based features:
-    .venv\\Scripts\\python install_browser.py
+    .venv\\Scripts\\python scripts/install_browser.py
 
 This installs:
   1. playwright Python package (into venv)
@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-root   = Path(__file__).parent
+root   = Path(__file__).resolve().parent.parent
 venv_py  = root / ".venv" / "Scripts" / "python.exe"
 
 def run(cmd):
@@ -23,6 +23,10 @@ def run(cmd):
 
 
 def main():
+    import os
+    # Direct Playwright to download and run browsers from the SSD
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(root / "models" / "playwright")
+
     print()
     print("=" * 50)
     print("  xia — Browser Tool Installer")

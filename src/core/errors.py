@@ -42,7 +42,7 @@ class OllamaNotRunningError(XiaError):
     def __init__(self):
         super().__init__(
             message="Cannot connect to Ollama server at localhost:11434",
-            fix="Run launch.bat — it starts Ollama automatically",
+            fix="Run run.bat — it starts Ollama automatically",
             code="OLLAMA_NOT_RUNNING",
         )
 

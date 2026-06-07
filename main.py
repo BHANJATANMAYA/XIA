@@ -4,6 +4,10 @@ main.py — xia entry point (Part 10: Final, hardened)
 
 import sys
 import os
+from pathlib import Path
+
+# Add src folder to module search path so packages resolve correctly
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from core.config import cfg
 from core.logger import get_logger, setup_logging

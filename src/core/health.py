@@ -112,30 +112,20 @@ class HealthChecker:
             "ollama":               "ollama",
             "tenacity":             "tenacity",
         }
-        optional = {
-            "chromadb":             "chromadb (memory feature)",
-            "sentence_transformers": "sentence-transformers (memory feature)",
-        }
-
+        # Only check required packages — skip optional to save time.
+        # Optional packages are checked lazily when their features are used.
+        missing = []
         for module, package in required.items():
             try:
                 __import__(module)
             except ImportError:
-                self._error(
-                    f"Package: {package}",
-                    f"Required package '{package}' is not installed",
-                    f"Run: pip install {package}",
-                )
-
-        for module, package in optional.items():
-            try:
-                __import__(module)
-            except ImportError:
-                self._warning(
-                    f"Package: {package}",
-                    f"Optional package not installed — some features disabled",
-                    f"Run: pip install {package.split()[0]}",
-                )
+                missing.append(package)
+        for package in missing:
+            self._error(
+                f"Package: {package}",
+                f"Required package '{package}' is not installed",
+                f"Run: pip install {package}",
+            )
 
     def _check_paths(self):
         from core.paths import PATHS
@@ -149,7 +139,8 @@ class HealthChecker:
             )
             return
 
-        # Required dirs must exist and be writable
+        # Required dirs — just ensure they exist (skip slow write tests;
+        # the launcher already proved write access by writing stamp files)
         dirs_to_check = [
             PATHS.data_dir,
             PATHS.conversations_dir,
@@ -169,19 +160,6 @@ class HealthChecker:
                         f"Cannot create directory: {d}",
                         "Check SSD permissions and available space",
                     )
-                    continue
-
-            # Write test
-            test_file = d / ".write_test"
-            try:
-                test_file.write_text("ok")
-                test_file.unlink()
-            except Exception:
-                self._error(
-                    f"Write access: {d.name}",
-                    f"Directory is not writable: {d}",
-                    "Check file system permissions on the SSD",
-                )
 
     def _check_disk_space(self):
         from core.paths import PATHS
@@ -204,40 +182,33 @@ class HealthChecker:
             pass  # Non-critical
 
     def _check_config(self):
-        from core.paths import PATHS
-
-        if not PATHS.config_file.exists():
-            self._error(
-                "config.yaml",
-                f"Configuration file not found: {PATHS.config_file}",
-                "Copy config.yaml from the xia scaffold",
-            )
-            return
-
+        # Config was already parsed by core.config at import time.
+        # Just verify the config object is valid instead of re-parsing YAML.
         try:
-            import yaml
-            with open(PATHS.config_file) as f:
-                cfg = yaml.safe_load(f)
-            if not isinstance(cfg, dict):
-                raise ValueError("config.yaml is empty or malformed")
+            from core.config import cfg
+            if not cfg or not hasattr(cfg, 'llm'):
+                raise ValueError("config object is empty or malformed")
         except Exception as e:
             self._error(
                 "config.yaml",
-                f"Cannot parse config.yaml: {e}",
+                f"Configuration problem: {e}",
                 "Check config.yaml for YAML syntax errors",
             )
 
     def _check_ollama(self):
+        # If launcher already verified Ollama, skip the HTTP call
+        if os.environ.get("XIA_OLLAMA_VERIFIED") == "1":
+            return
         import urllib.request
         try:
-            with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3) as r:
+            with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2) as r:
                 if r.status != 200:
                     raise Exception("bad status")
         except Exception:
             self._warning(
                 "Ollama server",
                 "Ollama is not running on port 11434",
-                "Run launch.bat — it starts Ollama automatically",
+                "Run run.bat — it starts Ollama automatically",
             )
 
     # ── Helpers ────────────────────────────────────────────────────────────

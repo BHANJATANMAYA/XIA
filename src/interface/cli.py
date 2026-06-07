@@ -4,6 +4,7 @@ interface/cli.py — xia CLI
 
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rich.prompt import Prompt
 
@@ -35,12 +36,8 @@ class CLI:
     def _init_subsystems(self):
         from core.llm import LLMClient
         from core.router import ModelRouter
-        from tools.registry import build_default_registry
-        from memory.manager import MemoryManager
-        from skills.manager import SkillManager
-        from agent.session import Session
 
-        # LLM
+        # LLM — must be first (others depend on it)
         self.renderer.print_connecting("connecting to ollama")
         self.llm = LLMClient()
         if not self.llm.is_available():
@@ -49,37 +46,58 @@ class CLI:
             sys.exit(1)
         self.renderer.print_ok(cfg.llm.model)
 
-        # Tools
-        self.renderer.print_connecting("loading tools")
-        self.registry = build_default_registry(llm=self.llm)
-        self.renderer.print_ok(", ".join(self.registry.list_names()))
+        # Load tools, memory, and skills in parallel — they're independent
+        def _load_tools():
+            from tools.registry import build_default_registry
+            return build_default_registry(llm=self.llm)
 
-        # Memory
-        self.renderer.print_connecting("loading memory")
-        try:
-            self.memory = MemoryManager(llm=self.llm)
-            self.renderer.print_ok(str(self.memory.count()) + " memories")
-        except Exception as e:
-            log.warning("Memory unavailable: %s", e)
-            self.memory = None
-            self.renderer.print_failed("continuing without memory")
+        def _load_memory():
+            from memory.manager import MemoryManager
+            try:
+                return MemoryManager(llm=self.llm)
+            except Exception as e:
+                log.warning("Memory unavailable: %s", e)
+                return None
 
-        # Skills
-        self.renderer.print_connecting("loading skills")
-        try:
-            self.skills = SkillManager(llm=self.llm)
-            self.renderer.print_ok(str(self.skills.count()) + " skills")
-        except Exception as e:
-            log.warning("Skills unavailable: %s", e)
-            self.skills = None
-            self.renderer.print_failed("continuing without skills")
+        def _load_skills():
+            from skills.manager import SkillManager
+            try:
+                return SkillManager(llm=self.llm)
+            except Exception as e:
+                log.warning("Skills unavailable: %s", e)
+                return None
 
-        # Router
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            fut_tools  = pool.submit(_load_tools)
+            fut_memory = pool.submit(_load_memory)
+            fut_skills = pool.submit(_load_skills)
+
+            # Collect results (order doesn't matter, but print in order)
+            self.registry = fut_tools.result()
+            self.renderer.print_connecting("loading tools")
+            self.renderer.print_ok(", ".join(self.registry.list_names()))
+
+            self.memory = fut_memory.result()
+            self.renderer.print_connecting("loading memory")
+            if self.memory:
+                self.renderer.print_ok(str(self.memory.count()) + " memories")
+            else:
+                self.renderer.print_failed("continuing without memory")
+
+            self.skills = fut_skills.result()
+            self.renderer.print_connecting("loading skills")
+            if self.skills:
+                self.renderer.print_ok(str(self.skills.count()) + " skills")
+            else:
+                self.renderer.print_failed("continuing without skills")
+
+        # Router (reuses cached tag list from LLMClient)
         self.router = ModelRouter(self.llm)
         available = self.router.available_models()
         self.renderer.info("models available: " + ", ".join(available))
 
         # Session
+        from agent.session import Session
         self.session = Session(
             llm=self.llm,
             tool_registry=self.registry,
@@ -110,7 +128,7 @@ class CLI:
         while True:
             try:
                 user_input = Prompt.ask(
-                    "  [ui.prompt]you[/ui.prompt]",
+                    "\n  [ui.prompt]you[/ui.prompt]",
                     console=self.renderer.console,
                 )
             except (KeyboardInterrupt, EOFError):
@@ -136,9 +154,11 @@ class CLI:
                 tools_used=result.tools_used if result.tools_used else None,
             )
         except KeyboardInterrupt:
+            self.renderer.print_thinking_stop()
             self.renderer.warning("interrupted")
             self.renderer.console.print()
         except Exception as e:
+            self.renderer.print_thinking_stop()
             err_str = str(e).lower()
             if "timeout" in err_str or "timed out" in err_str or "readtimeout" in err_str:
                 self.renderer.warning("Model took too long to respond.")
