@@ -105,7 +105,12 @@ class MemoryManager:
         raw_entries = self._extract_raw_memories(session)
 
         llm_entries: List[Dict] = []
-        if self._llm and cfg.skills.auto_extract and getattr(cfg.memory, "typed_extraction_enabled", True):
+        if (
+            self._llm
+            and cfg.skills.auto_extract
+            and getattr(cfg.memory, "typed_extraction_enabled", True)
+            and self._should_run_typed_extraction(session, raw_entries)
+        ):
             extractor = self._get_extractor()
             llm_entries = extractor.extract_typed_from_session(session)
 
@@ -203,6 +208,25 @@ class MemoryManager:
                 )
 
         return entries
+
+    def _should_run_typed_extraction(self, session, raw_entries: List[Dict]) -> bool:
+        if raw_entries:
+            return True
+
+        user_messages = [
+            m.content.strip()
+            for m in session.messages
+            if getattr(m, "role", "") == "user" and m.content.strip()
+        ]
+        if len(user_messages) < 3:
+            return False
+
+        text = " ".join(user_messages).lower()
+        signals = (
+            "my ", "i am", "i'm", "i prefer", "i use", "i work",
+            "remember", "project", "workflow", "steps", "important",
+        )
+        return any(signal in text for signal in signals)
 
     def _get_extractor(self):
         if self._extractor is None:

@@ -80,6 +80,9 @@ class Renderer:
         import time
         from rich.text import Text
 
+        star_delay = 0.01
+        logo_delay = 0.015
+
         self.console.print()
         
         # 1. Print celestial stars above (fade-in style)
@@ -90,7 +93,7 @@ class Renderer:
         ]
         for line in stars_above:
             self.console.print(line)
-            time.sleep(0.04)
+            time.sleep(star_delay)
 
         # 2. Define the ASCII logo lines
         l1 = Text("    __  __   ___       ___", style="bold white")
@@ -102,9 +105,9 @@ class Renderer:
 
         # Print top of logo
         self.console.print(l1)
-        time.sleep(0.06)
+        time.sleep(logo_delay)
         self.console.print(l2)
-        time.sleep(0.06)
+        time.sleep(logo_delay)
 
         # 3. Print middle line with embedded slash style
         l3 = Text("     \\  /", style="bold white")
@@ -116,13 +119,13 @@ class Renderer:
         l3.append("\\", style="bold white")
         l3.append("====", style="bold #a855f7")
         self.console.print(l3)
-        time.sleep(0.06)
+        time.sleep(logo_delay)
 
         # Print bottom of logo
         self.console.print(l4)
-        time.sleep(0.06)
+        time.sleep(logo_delay)
         self.console.print(l5)
-        time.sleep(0.06)
+        time.sleep(logo_delay)
 
         # 4. Print stars below
         stars_below = [
@@ -132,7 +135,7 @@ class Renderer:
         ]
         for line in stars_below:
             self.console.print(line)
-            time.sleep(0.04)
+            time.sleep(star_delay)
 
         self.console.print()
         self.console.rule("[xia.name]~  x i a  ~[/xia.name]", characters="-", style="dim #a855f7")

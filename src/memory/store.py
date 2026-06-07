@@ -56,6 +56,7 @@ class MemoryStore:
         self._fallback_store: List[Dict] = []
         self._fallback_path = PATHS.embeddings_dir / "fallback_memory.json"
         self._use_fallback = False
+        self._count_cache: Optional[int] = None
 
         self._init_store()
 
@@ -80,6 +81,7 @@ class MemoryStore:
                 documents=[content],
                 metadatas=[meta],
             )
+            self._bump_count(1)
             return memory_id
         except Exception as e:
             log.error("Failed to store memory: %s", e)
@@ -107,6 +109,7 @@ class MemoryStore:
         try:
             vectors = self.embedder.embed_batch(clean)
             self._collection.add(ids=ids, embeddings=vectors, documents=clean, metadatas=meta_list)
+            self._bump_count(len(ids))
             return ids
         except Exception as e:
             log.error("Batch store failed: %s", e)
@@ -155,6 +158,7 @@ class MemoryStore:
         try:
             vectors = self.embedder.embed_batch(docs)
             self._collection.add(ids=ids, embeddings=vectors, documents=docs, metadatas=metas)
+            self._bump_count(len(ids))
             return ids
         except Exception as e:
             log.error("Structured batch store failed: %s", e)
@@ -177,7 +181,7 @@ class MemoryStore:
             return self._fallback_retrieve(query, top_k)
 
         try:
-            count = self._collection.count()
+            count = self.count()
             if count == 0:
                 return []
 
@@ -244,8 +248,11 @@ class MemoryStore:
     def count(self) -> int:
         if self._use_fallback:
             return len(self._fallback_store)
+        if self._count_cache is not None:
+            return self._count_cache
         try:
-            return self._collection.count()
+            self._count_cache = self._collection.count()
+            return self._count_cache
         except Exception:
             return 0
 
@@ -256,6 +263,7 @@ class MemoryStore:
             return True
         try:
             self._collection.delete(ids=[memory_id])
+            self._count_cache = max(0, self.count() - 1)
             return True
         except Exception as e:
             log.error("Delete failed: %s", e)
@@ -272,6 +280,7 @@ class MemoryStore:
                 name=self.collection_name,
                 metadata={"hnsw:space": "l2"},
             )
+            self._count_cache = 0
             log.info("Memory store cleared")
         except Exception as e:
             log.error("Clear failed: %s", e)
@@ -292,9 +301,10 @@ class MemoryStore:
                 name=self.collection_name,
                 metadata={"hnsw:space": "l2"},
             )
+            self._count_cache = self._collection.count()
             log.info(
                 "MemoryStore initialised (ChromaDB): %d memories in '%s'",
-                self._collection.count(), self.collection_name,
+                self._count_cache, self.collection_name,
             )
         except ImportError:
             log.warning("ChromaDB not installed — falling back to JSON memory store")
@@ -327,6 +337,10 @@ class MemoryStore:
             return max(0.0, min(1.0, v))
         except Exception:
             return default
+
+    def _bump_count(self, amount: int):
+        if self._count_cache is not None:
+            self._count_cache += amount
 
     def _build_metadata(self, metadata: Dict, default_source: str) -> Dict:
         now = datetime.now().isoformat()

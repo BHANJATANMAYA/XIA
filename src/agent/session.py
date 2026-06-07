@@ -63,6 +63,19 @@ ACTION_STARTERS = (
     "run ", "execute ", "install ",
 )
 
+MEMORY_QUERY_SIGNALS = (
+    "remember", "memory", "what is my", "what's my", "who am i",
+    "what do you know about me", "my name", "my age", "my location",
+    "i told you", "you remember", "from last time", "my project",
+    "my preference", "i prefer", "i use", "i work", "i like",
+    "i hate", "i love",
+)
+
+LOW_SIGNAL_CHAT = {
+    "hi", "hii", "hello", "hey", "yo", "sup", "thanks", "thank you",
+    "ok", "okay", "cool", "nice", "lol", "hmm", "hmmm",
+}
+
 
 class SessionMessage:
     def __init__(self, role: str, content: str, agent_result: Optional[AgentResult] = None):
@@ -219,7 +232,7 @@ class Session:
         self.messages.append(SessionMessage(role="user", content=user_input))
 
         memory_snippets = []
-        if self.memory_manager:
+        if self.memory_manager and self._should_retrieve_memory(user_input):
             try:
                 memory_snippets = self.memory_manager.retrieve(user_input, top_k=3)
             except Exception as e:
@@ -245,6 +258,21 @@ class Session:
                 log.debug("Working memory track failed (chat mode): %s", e)
 
         return self._wrap_simple(response.content)
+
+    def _should_retrieve_memory(self, user_input: str) -> bool:
+        lower = " ".join(user_input.lower().split())
+        if not lower:
+            return False
+
+        if any(signal in lower for signal in MEMORY_QUERY_SIGNALS):
+            return True
+
+        words = lower.split()
+        if lower in LOW_SIGNAL_CHAT:
+            return False
+
+        # Avoid waking the embedding model for tiny casual messages.
+        return len(words) >= 4
 
     def _wrap_simple(self, content: str) -> AgentResult:
         return AgentResult(
