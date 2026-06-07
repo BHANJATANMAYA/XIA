@@ -12,14 +12,14 @@ from rich.style import Style
 
 XIA_THEME = Theme({
     # Brand
-    "xia.name":       "bold cyan",
-    "xia.version":    "dim cyan",
+    "xia.name":       "bold #a855f7",
+    "xia.version":    "dim #a855f7",
 
     # Step types
-    "step.think":     "bold cyan",
+    "step.think":     "bold #a855f7",
     "step.plan":      "bold yellow",
-    "step.act":       "bold magenta",
-    "step.observe":   "bold blue",
+    "step.act":       "bold #ec4899",
+    "step.observe":   "bold #6366f1",
     "step.reason":    "bold green",
     "step.final":     "bold green",
     "step.error":     "bold red",
@@ -32,7 +32,7 @@ XIA_THEME = Theme({
     "ui.success":     "bold green",
     "ui.warning":     "bold yellow",
     "ui.error":       "bold red",
-    "ui.info":        "cyan",
+    "ui.info":        "#a855f7",
     "ui.dim":         "dim white",
     "ui.muted":       "dim",
 
@@ -40,8 +40,8 @@ XIA_THEME = Theme({
     "content.user":   "bold white",
     "content.answer": "white",
     "content.code":   "green",
-    "content.tool":   "dim magenta",
-    "content.memory": "dim cyan",
+    "content.tool":   "dim #ec4899",
+    "content.memory": "dim #a855f7",
     "content.skill":  "dim yellow",
 })
 

@@ -1,6 +1,10 @@
 # 🧬 xia
 
 <p align="center">
+  <img src="docs/assets/logo_text.png" alt="xia logo" width="500">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/Python-3.11%20%7C%203.12-brightgreen.svg" alt="Python Support">
   <img src="https://img.shields.io/badge/Ollama-Local-orange.svg" alt="Ollama Local">

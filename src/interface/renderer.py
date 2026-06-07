@@ -29,7 +29,21 @@ class Renderer:
 
     def print_banner(self, model: str, root: str, mem_count: int, skill_count: int):
         self.console.print()
-        self.console.rule("[xia.name]✦  x i a  ✦[/xia.name]", style="dim cyan")
+        # Stylized ASCII representation of the rough brush-stroke text logo
+        from rich.text import Text
+        l1 = Text("    __   __  ___   ___", style="bold white")
+        l2 = Text("    \\ \\ / / |_ _| / _ \\", style="bold white")
+        l3 = Text("     \\ V /   | | / ___ \\", style="bold white")
+        l3.append("==========", style="bold #a855f7")
+        l4 = Text("      \\_/   |___/_/   \\_\\  ", style="bold white")
+        l4.append("v1.0.0", style="dim #a855f7")
+
+        self.console.print(l1)
+        self.console.print(l2)
+        self.console.print(l3)
+        self.console.print(l4)
+        self.console.print()
+        self.console.rule("[xia.name]~  x i a  ~[/xia.name]", style="dim #a855f7")
         self.console.print()
         table = Table(box=None, show_header=False, padding=(0, 2))
         table.add_column(style="ui.label", width=14)
@@ -124,10 +138,10 @@ class Renderer:
         self.console.print(
             Panel(
                 Markdown(answer),
-                border_style="dim cyan",
+                border_style="dim #a855f7",
                 padding=(1, 2),
                 box=box.ROUNDED,
-                title="[xia.name]✦ xia ✦[/xia.name]",
+                title="[xia.name]~ xia ~[/xia.name]",
                 title_align="left",
             )
         )
