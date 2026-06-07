@@ -234,7 +234,7 @@ class CLI:
             self.renderer.success("all ollama processes terminated")
 
         self.renderer.console.print()
-        self.renderer.console.rule("[xia.name]everything stopped[/xia.name]", characters="-", style="dim cyan")
+        self.renderer.console.print("  [xia.name]xia[/xia.name]  [ui.dim]-[/ui.dim]  [content.answer]Everything stopped. Ollama server shut down.[/content.answer]")
         self.renderer.console.print()
 
         # Use os._exit to guarantee immediate termination —
@@ -429,5 +429,5 @@ class CLI:
         except Exception as e:
             self.renderer.warning("could not save session: " + str(e))
         self.renderer.console.print()
-        self.renderer.console.rule("[xia.name]goodbye[/xia.name]", characters="-", style="dim cyan")
+        self.renderer.console.print("  [xia.name]xia[/xia.name]  [ui.dim]-[/ui.dim]  [content.answer]Keyboard down. Go touch some grass.[/content.answer]")
         self.renderer.console.print()
