@@ -315,7 +315,7 @@ class Renderer:
     def print_help(self):
         self.console.print()
         table = Table(box=None, show_header=False, padding=(0, 2))
-        table.add_column(style="content.skill", width=22)
+        table.add_column(style="content.command", width=28)
         table.add_column(style="ui.muted")
 
         commands = [

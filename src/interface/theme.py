@@ -43,6 +43,7 @@ XIA_THEME = Theme({
     "content.tool":   "dim #ec4899",
     "content.memory": "dim #a855f7",
     "content.skill":  "dim yellow",
+    "content.command": "bold #ec4899",
 })
 
 # ── Layout constants ───────────────────────────────────────────────────────────
