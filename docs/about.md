@@ -1,4 +1,4 @@
-# 🚀 XIA — eXtremely Intelligent Assistant
+# 🚀 xia
 ### Comprehensive Project Overview
 
 > A self-bootstrapping, portable AI agent that runs entirely from an external SSD.
@@ -8,7 +8,7 @@
 
 ## 📌 What Is XIA?
 
-XIA (eXtremely Intelligent Assistant) is a **fully offline, portable, self-contained AI agent system** built entirely in Python. It runs from an external SSD without requiring any pre-installed software on the host machine. On the first launch, it bootstraps its own Python virtual environment, installs all dependencies, downloads the Ollama runtime, and pulls LLM models automatically. On every subsequent run, it starts instantly.
+xia is a **fully offline, portable, self-contained AI agent system** built entirely in Python. It runs from an external SSD without requiring any pre-installed software on the host machine. On the first launch, it bootstraps its own Python virtual environment, installs all dependencies, downloads the Ollama runtime, and pulls LLM models automatically. On every subsequent run, it starts instantly.
 
 XIA is not just a chatbot — it is a **reasoning agent** that can think, plan, act using real-world tools, observe results, and learn from experience. It uses a local LLM (via Ollama) so all computation is 100% private and offline.
 

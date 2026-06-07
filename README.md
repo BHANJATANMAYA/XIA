@@ -1,4 +1,4 @@
-# 🧬 XIA — eXtremely Intelligent Assistant
+# 🧬 xia
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
