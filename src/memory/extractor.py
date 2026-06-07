@@ -16,14 +16,14 @@ EXTRACTION_PROMPT = """You are a memory extraction system for an AI agent called
 Given a conversation, extract memories useful in future conversations.
 
 For each memory, return an object with this schema:
-{
+{{
   "text": "short factual memory",
   "memory_type": "episodic|semantic|procedural",
   "importance": 0.0 to 1.0,
   "subject": "optional entity",
   "relation": "optional relation",
   "object": "optional entity"
-}
+}}
 
 Guidelines:
 - episodic: specific events/outcomes from this session

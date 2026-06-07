@@ -18,17 +18,40 @@ from pathlib import Path
 class C:
     RESET  = "\033[0m"
     BOLD   = "\033[1m"
+    DIM    = "\033[2m"
     GREEN  = "\033[92m"
     YELLOW = "\033[93m"
     RED    = "\033[91m"
     CYAN   = "\033[96m"
-    DIM    = "\033[2m"
+    PURPLE = "\033[95m"
 
-def ok(msg):    print(f"  {C.GREEN}[OK]{C.RESET}  {msg}")
-def info(msg):  print(f"  {C.CYAN}[->]{C.RESET}  {msg}")
-def warn(msg):  print(f"  {C.YELLOW}[!]{C.RESET}  {msg}")
-def err(msg):   print(f"  {C.RED}[ERROR]{C.RESET}  {msg}")
-def step(msg):  print(f"\n  {C.BOLD}{msg}{C.RESET}")
+
+_had_sub = False
+
+
+def start_step(label: str):
+    global _had_sub
+    _had_sub = False
+    print(f"  {C.PURPLE}*{C.RESET}  {C.DIM}{label:<26}{C.RESET} [{C.CYAN}...{C.RESET}]", end="", flush=True)
+
+
+def end_step(label: str, status: str, style=C.GREEN, sub_msg: str = ""):
+    global _had_sub
+    if _had_sub:
+        print(f"  {C.PURPLE}*{C.RESET}  {C.DIM}{label:<26}{C.RESET} [{style}{status}{C.RESET}]", flush=True)
+    else:
+        # Pad with spaces to clear any pending spinner text on the same line
+        print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{label:<26}{C.RESET} [{style}{status}{C.RESET}]" + " " * 30, flush=True)
+    if sub_msg:
+        print(f"     {C.DIM}- {sub_msg}{C.RESET}", flush=True)
+
+
+def print_sub(msg: str, style=C.DIM):
+    global _had_sub
+    if not _had_sub:
+        print() # print a newline first
+        _had_sub = True
+    print(f"     {style}- {msg}{C.RESET}", flush=True)
 
 
 def find_xia_root() -> Path:
@@ -73,48 +96,44 @@ def read_config(key_path: str, default=None):
 # -- Step 1: Venv ---------------------------------------------------------------
 
 def ensure_venv():
-    step("Step 1 - Virtual environment")
+    start_step("environment")
 
     if VENV_PY.exists():
         # Validate the venv actually works on THIS machine.
-        # A venv carries absolute paths to the Python that built it - so a
-        # venv created on PC-A will silently fail on PC-B even if the .exe
-        # file exists on the SSD.
         probe = subprocess.run(
             [str(VENV_PY), "--version"],
             capture_output=True, text=True,
         )
         if probe.returncode == 0:
-            ok(f"venv OK  ({probe.stdout.strip()})")
+            end_step("environment", "ok")
             return
 
-        warn("Venv is stale (was built on a different machine). Rebuilding...")
+        print_sub("stale environment detected, rebuilding...", C.YELLOW)
         import shutil
         shutil.rmtree(str(VENV_DIR), ignore_errors=True)
 
-    info("Creating virtual environment (first time on this machine)...")
+    print_sub("creating virtual environment (first time on this machine)...")
     result = subprocess.run([sys.executable, "-m", "venv", str(VENV_DIR)])
     if result.returncode != 0:
-        err("Failed to create virtual environment.")
+        end_step("environment", "failed", C.RED)
         sys.exit(1)
-    ok("Virtual environment created.")
+    end_step("environment", "created")
 
 
 # -- Step 2: Dependencies -------------------------------------------------------
 
 def ensure_dependencies():
-    step("Step 2 - Python dependencies")
+    start_step("dependencies")
     if not REQ_FILE.exists():
-        warn("requirements.txt not found - skipping.")
+        end_step("dependencies", "missing", C.YELLOW)
         return
 
     current = req_hash()
     if STAMP.exists() and STAMP.read_text().strip() == current:
-        ok("Dependencies up to date.")
+        end_step("dependencies", "ok")
         return
 
-    info("Installing dependencies (this may take a few minutes the first time)...")
-    
+    # Installing - run with inline spinner
     import tempfile
     with tempfile.TemporaryFile(mode='w+', encoding='utf-8') as temp_err:
         process = subprocess.Popen([
@@ -124,26 +143,23 @@ def ensure_dependencies():
             "--quiet",
         ], stdout=subprocess.DEVNULL, stderr=temp_err)
         
-        spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spinner = ["|", "/", "-", "\\"]
         i = 0
         while process.poll() is None:
-            print(f"\r  {C.CYAN}[{spinner[i % len(spinner)]}]{C.RESET}  Fetching packages...", end="", flush=True)
+            print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{'dependencies':<26}{C.RESET} [{C.CYAN}{spinner[i % len(spinner)]}{C.RESET}] installing...", end="", flush=True)
             i += 1
             time.sleep(0.1)
             
-        print("\r" + " " * 60 + "\r", end="", flush=True)
-
         if process.returncode != 0:
+            print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{'dependencies':<26}{C.RESET} [{C.RED}failed{C.RESET}]" + " " * 20, flush=True)
             temp_err.seek(0)
             stderr_data = temp_err.read()
-            err("Dependency install failed.")
-            err(f'Try manually: "{VENV_PY}" -m pip install -r "{REQ_FILE}"')
             if stderr_data.strip():
                 print(f"\n{C.RED}Pip Error:{C.RESET}\n{stderr_data.strip()}")
             sys.exit(1)
 
     STAMP.write_text(current)
-    ok("Dependencies installed.")
+    end_step("dependencies", "updated")
 
 
 # -- Step 3: Host detection -----------------------------------------------------
@@ -152,7 +168,6 @@ HOST_CACHE = ROOT / "data" / ".host_cache.json"
 
 
 def _load_host_cache() -> dict | None:
-    """Load cached host detection results if they match this machine."""
     try:
         if HOST_CACHE.exists():
             import platform
@@ -165,7 +180,6 @@ def _load_host_cache() -> dict | None:
 
 
 def _save_host_cache(host: dict):
-    """Cache host detection results keyed by hostname."""
     try:
         import platform
         host["hostname"] = platform.node()
@@ -176,13 +190,13 @@ def _save_host_cache(host: dict):
 
 
 def detect_host() -> dict:
-    step("Step 3 - Host detection")
+    start_step("host system")
 
-    # Try loading from cache first (skips wmic + nvidia-smi calls)
     cached = _load_host_cache()
     if cached:
         gpu_str = cached.get("gpu_name", "CPU only") if cached.get("has_gpu") else "CPU only"
-        ok(f"{cached['ram_gb']}GB RAM  |  {cached['cpu_cores']} cores  |  {gpu_str}")
+        status = "gpu" if cached.get("has_gpu") else "cpu"
+        end_step("host system", status, sub_msg=f"{cached['ram_gb']}GB RAM  |  {cached['cpu_cores']} cores  |  {gpu_str}")
         _apply_host_env(cached)
         return cached
 
@@ -214,7 +228,8 @@ def detect_host() -> dict:
         pass
 
     gpu_str = host.get("gpu_name", "CPU only") if host["has_gpu"] else "CPU only"
-    ok(f"{host['ram_gb']}GB RAM  |  {host['cpu_cores']} cores  |  {gpu_str}")
+    status = "gpu" if host["has_gpu"] else "cpu"
+    end_step("host system", status, sub_msg=f"{host['ram_gb']}GB RAM  |  {host['cpu_cores']} cores  |  {gpu_str}")
 
     _apply_host_env(host)
     _save_host_cache(host)
@@ -222,12 +237,10 @@ def detect_host() -> dict:
 
 
 def _apply_host_env(host: dict):
-    """Set Ollama env vars based on host capabilities."""
     threads = max(1, host["cpu_cores"] - 2)
     os.environ["OLLAMA_NUM_THREADS"] = str(threads)
     if host.get("has_gpu"):
         os.environ["OLLAMA_GPU_LAYERS"] = "999"
-        info("GPU detected - enabling GPU acceleration")
 
 
 # -- Step 4: Ollama -------------------------------------------------------------
@@ -241,7 +254,8 @@ def server_running() -> bool:
 
 
 def ensure_ollama():
-    step("Step 4 - Ollama")
+    model = read_config("llm.model", "mistral")
+    start_step(f"model server ({model})")
 
     if not shutil.which("ollama"):
         local_bin = ROOT / "models" / "ollama" / "bin"
@@ -253,56 +267,51 @@ def ensure_ollama():
 
     if not shutil.which("ollama"):
         print()
-        warn("Ollama not found on this machine.")
+        print_sub("Ollama not found on this machine.", C.YELLOW)
         answer = input("  Install Ollama now? [y/N]: ").strip().lower()
         if answer not in {"y", "yes"}:
-            err("Ollama is required. Install from https://ollama.com")
+            print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model})':<26}{C.RESET} [{C.RED}failed{C.RESET}]", flush=True)
             sys.exit(1)
         _install_ollama()
-    else:
-        ok("Ollama installed.")
 
     if not server_running():
-        info("Starting Ollama server...")
+        print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model})':<26}{C.RESET} [{C.CYAN}starting...{C.RESET}]", end="", flush=True)
         subprocess.Popen(
             ["ollama", "serve"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
-        # Fast poll: check immediately, then 0.3s intervals (max ~4.5s)
         for i in range(15):
             if server_running():
-                ok(f"Ollama server started ({i * 0.3:.1f}s).")
                 break
             time.sleep(0.3)
         else:
-            warn("Ollama slow to start - xia will retry on first request.")
-    else:
-        ok("Ollama server running.")
+            end_step(f"model server ({model})", "ready", C.YELLOW, sub_msg="Ollama slow to start, but continuing...")
+            os.environ["XIA_OLLAMA_VERIFIED"] = "1"
+            return
 
-    # Signal health check that Ollama is verified
     os.environ["XIA_OLLAMA_VERIFIED"] = "1"
 
-    # Pull model if needed
-    model = read_config("llm.model", "mistral")
-    _ensure_model(model)
+    has_model = _ensure_model(model)
+    if has_model:
+        end_step(f"model server ({model})", "ready")
 
 
 def _install_ollama():
     installer = Path(os.environ.get("TEMP", ROOT)) / "OllamaSetup.exe"
-    info("Downloading Ollama installer...")
+    print_sub("Downloading Ollama installer...")
     try:
         urllib.request.urlretrieve(OLLAMA_URL, installer, _progress)
         print()
     except Exception as e:
-        err(f"Download failed: {e}")
+        print_sub(f"Download failed: {e}", C.RED)
         sys.exit(1)
-    info("Running installer silently (please wait)...")
+    print_sub("Running installer silently (please wait)...")
     try:
         subprocess.run(f'start /wait "" "{installer}" /S', shell=True, check=True)
     except Exception as e:
-        err(f"Failed to run installer: {e}")
+        print_sub(f"Failed to run installer: {e}", C.RED)
         sys.exit(1)
 
     default_install = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama"
@@ -310,52 +319,48 @@ def _install_ollama():
         os.environ["PATH"] = str(default_install) + os.pathsep + os.environ.get("PATH", "")
 
     if shutil.which("ollama"):
-        ok("Ollama installed.")
+        print_sub("Ollama installed successfully.")
     else:
-        warn("Ollama may need a terminal restart to appear in PATH.")
+        print_sub("Ollama may need a terminal restart to appear in PATH.", C.YELLOW)
 
 
-def _ensure_model(model: str):
-    info(f"Checking model '{model}'...")
+def _ensure_model(model: str) -> bool:
     try:
         with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as r:
             data = json.loads(r.read())
             names = [m["name"] for m in data.get("models", [])]
-            # Match exact name (e.g. "qwen3.5:4b") or base name if no tag specified
             model_base = model.split(":")[0]
             found = any(
                 n == model or n.split(":")[0] == model_base
                 for n in names
             )
             if found:
-                ok(f"Model '{model}' ready.")
-                return
+                return True
     except Exception:
-        warn("Could not check models - server may still be starting.")
-        return
+        return False
 
     print()
-    warn(f"Model '{model}' not downloaded yet (~4-5GB).")
+    print_sub(f"Model '{model}' not downloaded yet (~4-5GB).", C.YELLOW)
     answer = input(f"  Download '{model}' now? [y/N]: ").strip().lower()
     if answer not in {"y", "yes"}:
-        warn(f"Skipping. Run manually: ollama pull {model}")
-        return
-    info(f"Pulling '{model}'...")
+        print_sub(f"Skipping model download. Run manually: ollama pull {model}", C.YELLOW)
+        return True
+    print_sub(f"Pulling '{model}'...")
     subprocess.run(["ollama", "pull", model])
-    ok(f"Model '{model}' ready.")
+    return True
 
 
 def _progress(count, block, total):
     if total > 0:
         pct = min(100, count * block * 100 // total)
-        bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
-        print(f"\r  [{bar}] {pct}%", end="", flush=True)
+        bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
+        print(f"\r     {C.DIM}[{bar}] {pct}%{C.RESET}", end="", flush=True)
 
 
 # -- Step 5: Health check -------------------------------------------------------
 
 def run_health_check():
-    step("Step 5 - Health check")
+    start_step("integrity check")
     try:
         sys.path.insert(0, str(ROOT / "src"))
         from core.health import HealthChecker
@@ -364,29 +369,31 @@ def run_health_check():
         errors   = [i for i in issues if i.level == "error"]
         warnings = [i for i in issues if i.level == "warning"]
         if errors:
+            print()
             checker.print_report(issues)
             sys.exit(1)
         if warnings:
+            print()
             for w in warnings:
-                warn(f"{w.check}: {w.message}")
-        ok("Health check passed.")
+                print_sub(f"{w.check}: {w.message}", C.YELLOW)
+        end_step("integrity check", "passed")
     except Exception as e:
-        warn(f"Health check skipped: {e}")
+        end_step("integrity check", "skipped", C.YELLOW, sub_msg=str(e))
 
 
 # -- Step 6: Launch -------------------------------------------------------------
 
 def launch():
-    step("Step 6 - Launching xia")
+    start_step("starting core")
     if not MAIN_PY.exists():
-        err(f"main.py not found: {MAIN_PY}")
+        end_step("starting core", "failed", C.RED, sub_msg=f"main.py not found")
         sys.exit(1)
 
     env = os.environ.copy()
     env["XIA_ROOT"] = str(ROOT)
 
-    ok("Starting...\n")
-    print("  " + "-" * 48)
+    end_step("starting core", "ok")
+    print(f"  {C.DIM}{'-'*48}{C.RESET}")
 
     result = subprocess.run(
         [str(VENV_PY), str(MAIN_PY)],
@@ -394,9 +401,9 @@ def launch():
         cwd=str(ROOT),
     )
 
-    print("\n  " + "-" * 48)
+    print(f"  {C.DIM}{'-'*48}{C.RESET}")
     if result.returncode not in {0, 130}:  # 130 = Ctrl+C
-        err(f"xia exited with code {result.returncode}")
+        print(f"  {C.RED}[ERROR]  xia exited with code {result.returncode}{C.RESET}")
         sys.exit(result.returncode)
 
 
@@ -407,12 +414,8 @@ def main():
         os.system("")
 
     print()
-    print(f"  {'-'*48}")
-    print(f"  {'xia  -  Bootstrap':^48}")
-    print(f"  {'-'*48}")
-    print(f"  root   : {ROOT}")
-    print(f"  python : {sys.version.split()[0]}")
-    print(f"  {'-'*48}")
+    print(f"  {C.PURPLE}xia{C.RESET}  -  booting...")
+    print()
 
     try:
         ensure_venv()

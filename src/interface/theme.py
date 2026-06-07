@@ -48,16 +48,16 @@ XIA_THEME = Theme({
 # ── Layout constants ───────────────────────────────────────────────────────────
 
 PANEL_WIDTH   = 80
-SEPARATOR     = "─" * 52
-THICK_SEP     = "═" * 52
+SEPARATOR     = "-" * 52
+THICK_SEP     = "=" * 52
 
 STEP_ICONS = {
-    "THINK":   "◎",
-    "PLAN":    "◈",
-    "ACT":     "▶",
-    "OBSERVE": "◉",
-    "REASON":  "◇",
-    "FINAL":   "✓",
+    "THINK":   "*",
+    "PLAN":    "+",
+    "ACT":     ">",
+    "OBSERVE": "<",
+    "REASON":  ":",
+    "FINAL":   "*",
 }
 
 STEP_STYLES = {
@@ -68,3 +68,4 @@ STEP_STYLES = {
     "REASON":  "step.reason",
     "FINAL":   "step.final",
 }
+

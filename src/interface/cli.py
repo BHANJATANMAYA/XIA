@@ -120,7 +120,7 @@ class CLI:
             if recent:
                 self.renderer.info("remembered from last session:")
                 for m in recent:
-                    self.renderer.console.print("  [ui.dim]  · " + m[:70] + "[/ui.dim]")
+                    self.renderer.console.print("  [ui.dim]  - " + m[:70] + "[/ui.dim]")
                 self.renderer.console.print()
         self.renderer.print_ready(self.registry.list_names())
 
@@ -146,7 +146,7 @@ class CLI:
             self._handle_message(user_input)
 
     def _handle_message(self, user_input: str):
-        self.renderer.print_thinking_start()
+        self.renderer.print_thinking_start(user_input)
         try:
             result = self.session.send(user_input)
             self.renderer.print_answer(
@@ -234,7 +234,7 @@ class CLI:
             self.renderer.success("all ollama processes terminated")
 
         self.renderer.console.print()
-        self.renderer.console.rule("[xia.name]everything stopped[/xia.name]", style="dim cyan")
+        self.renderer.console.rule("[xia.name]everything stopped[/xia.name]", characters="-", style="dim cyan")
         self.renderer.console.print()
 
         # Use os._exit to guarantee immediate termination —
@@ -429,5 +429,5 @@ class CLI:
         except Exception as e:
             self.renderer.warning("could not save session: " + str(e))
         self.renderer.console.print()
-        self.renderer.console.rule("[xia.name]goodbye[/xia.name]", style="dim cyan")
+        self.renderer.console.rule("[xia.name]goodbye[/xia.name]", characters="-", style="dim cyan")
         self.renderer.console.print()

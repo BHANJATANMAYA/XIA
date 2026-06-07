@@ -4,6 +4,7 @@ interface/renderer.py — Terminal Renderer
 Handles all Rich-based output for the xia CLI.
 """
 
+import re
 from typing import List, Optional
 
 from rich.console import Console
@@ -17,6 +18,54 @@ from rich import box
 from interface.theme import XIA_THEME, STEP_ICONS, STEP_STYLES
 
 
+def _has_word(text: str, words: tuple[str, ...]) -> bool:
+    return any(re.search(rf"\b{re.escape(word)}\b", text) for word in words)
+
+
+def status_for(text: str) -> str:
+    lower = text.lower().strip()
+
+    # Serious contexts get calm wording before anything playful can match.
+    if _has_word(lower, (
+        "hurt", "injured", "bleeding", "cut", "grief", "panic", "scared",
+        "afraid", "died", "death", "lost someone", "suicide", "self harm",
+    )):
+        return "choosing words carefully..."
+
+    if (
+        _has_word(lower, ("aws", "github", "api", "ssh", "private"))
+        and _has_word(lower, (
+            "key", "keys", "secret", "secrets", "token", "tokens",
+            "credential", "credentials", "password", "passwords",
+        ))
+    ):
+        return "triaging the leak..."
+
+    if (
+        _has_word(lower, ("deleted", "dropped", "wiped", "broke"))
+        and _has_word(lower, ("production", "prod", "database", "db"))
+    ):
+        return "resisting the urge to panic..."
+
+    if _has_word(lower, ("bug", "error", "exception", "crash", "failed", "slow")):
+        return "investigating..."
+
+    if (
+        "who are you" in lower
+        or "who made you" in lower
+        or "who built you" in lower
+    ):
+        return "checking identity..."
+
+    if "i love you" in lower or "love u" in lower:
+        return "choosing words carefully..."
+
+    if _has_word(lower, ("hi", "hello", "hey", "yo")):
+        return "waking up..."
+
+    return "thinking..."
+
+
 class Renderer:
     """All terminal output goes through here."""
 
@@ -28,29 +77,68 @@ class Renderer:
     # ── Startup ────────────────────────────────────────────────────────────
 
     def print_banner(self, model: str, root: str, mem_count: int, skill_count: int):
-        self.console.print()
-        # Stylized ASCII representation of the rough brush-stroke text logo
+        import time
         from rich.text import Text
-        l1 = Text("    __  __   ___     ___", style="bold white")
-        l2 = Text("    \\ \\/ /  |_ _|   / _ \\", style="bold white")
+
+        self.console.print()
+        
+        # 1. Print celestial stars above (fade-in style)
+        stars_above = [
+            "    [dim #a855f7]*[/dim #a855f7]                                         [dim white].[/dim white]      ",
+            "                [dim white].[/dim white]             [bold #ec4899]*[/bold #ec4899]          [dim #6366f1].[/dim #6366f1]     ",
+            "        [dim white].[/dim white]            [dim #6366f1].[/dim #6366f1]                                  "
+        ]
+        for line in stars_above:
+            self.console.print(line)
+            time.sleep(0.04)
+
+        # 2. Define the ASCII logo lines
+        l1 = Text("    __  __   ___       ___", style="bold white")
+        l2 = Text("    \\ \\/ /  |_ _|     /   \\", style="bold white")
+        
+        l4 = Text("     /  \\    | |    / /   \\ \\  ", style="bold white")
+        l4.append("v1.0.0", style="dim #a855f7")
+        l5 = Text("    /_/\\_\\  |___|  /_/     \\_\\", style="bold white")
+
+        # Print top of logo
+        self.console.print(l1)
+        time.sleep(0.06)
+        self.console.print(l2)
+        time.sleep(0.06)
+
+        # 3. Print middle line with embedded slash style
         l3 = Text("     \\  /", style="bold white")
         l3.append("====", style="bold #a855f7")
         l3.append("| |", style="bold white")
-        l3.append("===", style="bold #a855f7")
-        l3.append("/ ___ \\", style="bold white")
+        l3.append("=====", style="bold #a855f7")
+        l3.append("/", style="bold white")
+        l3.append("=====", style="bold #a855f7")
+        l3.append("\\", style="bold white")
         l3.append("====", style="bold #a855f7")
-        l4 = Text("     /  \\    | |  /_/   \\_\\  ", style="bold white")
-        l4.append("v1.0.0", style="dim #a855f7")
-        l5 = Text("    /_/\\_\\  |___|", style="bold white")
-
-        self.console.print(l1)
-        self.console.print(l2)
         self.console.print(l3)
+        time.sleep(0.06)
+
+        # Print bottom of logo
         self.console.print(l4)
+        time.sleep(0.06)
         self.console.print(l5)
+        time.sleep(0.06)
+
+        # 4. Print stars below
+        stars_below = [
+            "            [dim white].[/dim white]                                      [dim #a855f7]*[/dim #a855f7]   ",
+            "                      [dim #6366f1]*[/dim #6366f1]                        [dim white].[/dim white]       ",
+            "            [dim white].[/dim white]             [dim #a855f7].[/dim #a855f7]       [bold #ec4899]*[/bold #ec4899]                     "
+        ]
+        for line in stars_below:
+            self.console.print(line)
+            time.sleep(0.04)
+
         self.console.print()
-        self.console.rule("[xia.name]~  x i a  ~[/xia.name]", style="dim #a855f7")
+        self.console.rule("[xia.name]~  x i a  ~[/xia.name]", characters="-", style="dim #a855f7")
         self.console.print()
+        
+        # Details Table
         table = Table(box=None, show_header=False, padding=(0, 2))
         table.add_column(style="ui.label", width=14)
         table.add_column(style="ui.value")
@@ -67,7 +155,7 @@ class Renderer:
             f"tools: {', '.join(tools)}  |  /help for commands[/ui.dim]"
         )
         self.console.print()
-        self.console.rule(style="dim")
+        self.console.rule(characters="-", style="dim")
         self.console.print()
 
     def print_connecting(self, label: str):
@@ -86,11 +174,12 @@ class Renderer:
     def reset_step_count(self):
         self._step_count = 0
 
-    def print_thinking_start(self):
+    def print_thinking_start(self, user_input: str = ""):
         self._step_count = 0
         if self._status:
             self._status.stop()
-        self._status = self.console.status("  [ui.dim]thinking…[/ui.dim]", spinner="dots", spinner_style="ui.dim")
+        status = status_for(user_input)
+        self._status = self.console.status(f"  [ui.dim]{status}[/ui.dim]", spinner="dots", spinner_style="ui.dim")
         self._status.start()
 
     def print_thinking_stop(self):
@@ -105,12 +194,12 @@ class Renderer:
             return
 
         self._step_count += 1
-        icon  = STEP_ICONS.get(step_type, "·")
+        icon  = STEP_ICONS.get(step_type, "-")
         style = STEP_STYLES.get(step_type, "ui.dim")
 
         content = step.content.strip()
         if len(content) > 180:
-            content = content[:180] + "…"
+            content = content[:180] + "..."
 
         self.console.print(
             f"  [{style}]{icon} {step_type}[/{style}]  "
@@ -121,18 +210,18 @@ class Renderer:
             input_preview = ""
             if step.tool_input:
                 inp = str(step.tool_input)
-                input_preview = f"  [ui.dim]{inp[0:60]}{'…' if len(inp) > 60 else ''}[/ui.dim]"
+                input_preview = f"  [ui.dim]{inp[0:60]}{'...' if len(inp) > 60 else ''}[/ui.dim]"
             self.console.print(
-                f"  [ui.dim]  └ [content.tool]{step.tool_name}[/content.tool]{input_preview}[/ui.dim]"
+                f"  [ui.dim]  + [content.tool]{step.tool_name}[/content.tool]{input_preview}[/ui.dim]"
             )
 
         if step.tool_result:
             preview = str(step.tool_result).strip()
             first_line = next((l for l in preview.splitlines() if l.strip()), preview)
             if len(first_line) > 90:
-                first_line = first_line[0:90] + "…"
+                first_line = first_line[0:90] + "..."
             self.console.print(
-                f"  [ui.dim]  └ {first_line}[/ui.dim]"
+                f"  [ui.dim]  + {first_line}[/ui.dim]"
             )
 
     # ── Final answer ───────────────────────────────────────────────────────
@@ -158,22 +247,22 @@ class Renderer:
             )
 
         self.console.print()
-        self.console.rule(style="dim")
+        self.console.rule(characters="-", style="dim")
         self.console.print()
 
     # ── Info messages ──────────────────────────────────────────────────────
 
     def info(self, msg: str):
-        self.console.print(f"  [ui.info]·[/ui.info]  {msg}")
+        self.console.print(f"  [ui.info]-[/ui.info]  {msg}")
 
     def success(self, msg: str):
-        self.console.print(f"  [ui.success]✓[/ui.success]  {msg}")
+        self.console.print(f"  [ui.success]+[/ui.success]  {msg}")
 
     def warning(self, msg: str):
         self.console.print(f"  [ui.warning]![/ui.warning]  {msg}")
 
     def error(self, msg: str):
-        self.console.print(f"  [ui.error]✗[/ui.error]  {msg}")
+        self.console.print(f"  [ui.error]x[/ui.error]  {msg}")
 
     def print(self, msg: str):
         self.console.print(f"  {msg}")
@@ -183,14 +272,14 @@ class Renderer:
     def print_memories(self, memories: list, total: int):
         self.console.print()
         self.console.print(
-            f"  [content.memory]◎ memory[/content.memory]  "
+            f"  [content.memory]* memory[/content.memory]  "
             f"[ui.dim]{total} total stored[/ui.dim]\n"
         )
         if not memories:
             self.info("No memories yet.")
             return
         for i, m in enumerate(memories, 1):
-            preview = m[:80] + "…" if len(m) > 80 else m
+            preview = m[:80] + "..." if len(m) > 80 else m
             self.console.print(f"  [ui.dim]{i}.[/ui.dim]  [ui.muted]{preview}[/ui.muted]")
         self.console.print()
 
@@ -202,7 +291,7 @@ class Renderer:
             return
 
         self.console.print(
-            f"  [content.skill]◈ skills[/content.skill]  "
+            f"  [content.skill]* skills[/content.skill]  "
             f"[ui.dim]{len(skills)} learned[/ui.dim]\n"
         )
         table = Table(box=box.SIMPLE, show_header=True,
@@ -212,7 +301,7 @@ class Renderer:
         table.add_column("description", style="ui.muted")
 
         for sk in skills[0:15]:
-            desc = sk.description[0:55] + ("…" if len(sk.description) > 55 else "")
+            desc = sk.description[0:55] + ("..." if len(sk.description) > 55 else "")
             table.add_row(str(sk.success_count), sk.name, desc)
 
         self.console.print(table)
