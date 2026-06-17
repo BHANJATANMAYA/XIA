@@ -1,4 +1,4 @@
-# 🧬 xia
+
 
 <p align="center">
   <img src="docs/assets/logo_text.png" alt="xia logo" width="500">
