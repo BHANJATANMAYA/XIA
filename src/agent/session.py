@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from agent.agent import Agent
 from agent.base import AgentResult, AgentStep, StepType
+from core.config import cfg
 from core.llm import LLMClient, Message
 from core.logger import get_logger
 from core.paths import PATHS
@@ -112,12 +113,47 @@ class Session:
             on_step=on_step,
         )
 
+        self.orchestrator = None
+        self.learner = None
+        self.user_model = None
+        self._advanced_initialized = False
+
         self.prompt_builder = PromptBuilder()
         self.history: List[Message] = []
         self.messages: List[SessionMessage] = []
 
         mem_count = memory_manager.count() if memory_manager else 0
         log.info("Session %s started (memories available: %d)", self.session_id, mem_count)
+
+    def _init_advanced_systems(self):
+        if self._advanced_initialized:
+            return
+        self._advanced_initialized = True
+
+        if cfg.orchestration.enabled:
+            from agent.orchestrator import Orchestrator
+            self.orchestrator = Orchestrator(
+                llm=self.llm,
+                tool_registry=self.tool_registry,
+                memory_manager=self.memory_manager,
+                skill_manager=self.skill_manager,
+                router=self.router,
+                on_step=self.on_step,
+            )
+
+        if cfg.self_learning.enabled:
+            from agent.learner import SelfLearner
+            self.learner = SelfLearner(
+                llm=self.llm,
+                memory_manager=self.memory_manager,
+            )
+
+        if cfg.orchestration.user_model_enabled:
+            from agent.user_model import UserModel
+            self.user_model = UserModel(
+                llm=self.llm,
+                memory_manager=self.memory_manager,
+            )
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -126,10 +162,12 @@ class Session:
         if not user_input:
             return self._wrap_simple("(empty input)")
 
-        mode = "agent" if self._needs_agent(user_input) else "chat"
+        mode = self._needs_agent(user_input)
         log.info("Session.send(): %r (mode=%s)", user_input[:60], mode)
 
-        if mode == "agent":
+        if mode == "orchestrator":
+            return self._run_orchestrator(user_input)
+        elif mode == "agent":
             return self._run_agent(user_input)
         else:
             return self._run_chat(user_input)
@@ -175,33 +213,86 @@ class Session:
 
     # ── Routing ────────────────────────────────────────────────────────────
 
-    def _needs_agent(self, text: str) -> bool:
+    ORCHESTRATOR_TRIGGERS = (
+        "build", "create a", "set up", "implement", "design",
+        "write a full", "create a complete", "scaffold",
+        "refactor", "migrate", "integrate",
+        "with tests", "with auth", "with database",
+        "end to end", "full stack", "complete",
+    )
+
+    def _needs_agent(self, text: str) -> str:
+        """Returns: 'chat' | 'agent' | 'orchestrator'"""
         lower = text.lower()
 
-        # Chat overrides always win — personal/memory questions go to chat
         if any(phrase in lower for phrase in CHAT_OVERRIDES):
-            return False
+            return "chat"
 
-        # Check agent triggers
+        if cfg.orchestration.enabled:
+            if any(trigger in lower for trigger in self.ORCHESTRATOR_TRIGGERS):
+                if len(text.split()) > 8:
+                    return "orchestrator"
+
         if any(trigger in lower for trigger in AGENT_TRIGGERS):
-            return True
+            return "agent"
 
-        # Imperative action starters
         if any(lower.startswith(v) for v in ACTION_STARTERS):
-            return True
+            return "agent"
 
-        # Long complex requests are likely tasks
         if len(text.split()) > 25:
-            return True
+            if cfg.orchestration.enabled:
+                return "orchestrator"
+            return "agent"
 
-        return False
+        return "chat"
 
     # ── Execution ──────────────────────────────────────────────────────────
+
+    def _run_orchestrator(self, user_input: str) -> AgentResult:
+        self.messages.append(SessionMessage(role="user", content=user_input))
+
+        if not self._advanced_initialized:
+            self._init_advanced_systems()
+
+        context = None
+        if self.learner:
+            lessons = self.learner.get_relevant_lessons(user_input)
+            if lessons:
+                context = "Lessons from past experience:\n" + "\n".join(f"- {l}" for l in lessons)
+
+        if self.user_model:
+            prefs_prompt = self.user_model.get_preferences_prompt()
+            if prefs_prompt:
+                context = (context or "") + "\n\n" + prefs_prompt
+
+        if self.orchestrator:
+            result = self.orchestrator.run(user_input, context=context)
+        else:
+            result = self.agent.run(user_input, context=context)
+
+        self.messages.append(SessionMessage(
+            role="assistant", content=result.final_answer, agent_result=result,
+        ))
+        self.history.append(Message.user(user_input))
+        self.history.append(Message.assistant(result.final_answer))
+
+        if self.learner:
+            self.learner.learn_from_result(user_input, result)
+
+        if self.user_model:
+            self.user_model.track_interaction(user_input, result.final_answer)
+
+        if self.memory_manager:
+            try:
+                self.memory_manager.track_interaction(user_input, result.final_answer)
+            except Exception as e:
+                log.debug("Working memory track failed (orchestrator mode): %s", e)
+
+        return result
 
     def _run_agent(self, user_input: str) -> AgentResult:
         self.messages.append(SessionMessage(role="user", content=user_input))
 
-        # Inject browser hint if the task clearly needs the browser
         task = user_input
         lower = user_input.lower()
         if any(t in lower for t in BROWSER_TRIGGERS):
@@ -225,6 +316,15 @@ class Session:
                 self.memory_manager.track_interaction(user_input, result.final_answer)
             except Exception as e:
                 log.debug("Working memory track failed (agent mode): %s", e)
+
+        if not self._advanced_initialized:
+            self._init_advanced_systems()
+
+        if self.learner:
+            self.learner.learn_from_result(user_input, result)
+
+        if self.user_model:
+            self.user_model.track_interaction(user_input, result.final_answer)
 
         return result
 
@@ -256,6 +356,12 @@ class Session:
                 self.memory_manager.track_interaction(user_input, response.content)
             except Exception as e:
                 log.debug("Working memory track failed (chat mode): %s", e)
+
+        if not self._advanced_initialized:
+            self._init_advanced_systems()
+
+        if self.user_model:
+            self.user_model.track_interaction(user_input, response.content)
 
         return self._wrap_simple(response.content)
 

@@ -142,8 +142,11 @@ class LLMClient:
         self.timeout = cfg.llm.timeout
 
         self._client = httpx.Client(timeout=self.timeout)
-        self._tags_cache = None  # Cached /api/tags response for startup
+        self._tags_cache = None
         self._tags_cache_time = 0
+        self._response_cache: dict = {}
+        self._response_cache_times: dict = {}
+        self._cache_ttl = cfg.llm.cache_ttl
         log.info("LLMClient initialised: model=%s base_url=%s", self.model, self.base_url)
 
     # ── Public API ─────────────────────────────────────────────────────────
@@ -158,17 +161,15 @@ class LLMClient:
     ) -> LLMResponse:
         """
         Send a message and get a complete response (non-streaming).
-
-        Args:
-            user_message:  The user's input text.
-            history:       Previous messages for multi-turn conversations.
-            system_prompt: Override the default system prompt for this call.
-            temperature:   Override temperature for this call.
-            json_mode:     If True, instructs model to respond with valid JSON only.
-
-        Returns:
-            LLMResponse with .content and .updated_history
         """
+        # Check cache (only for non-streaming, no-history calls)
+        if not history and self._cache_ttl > 0:
+            cache_key = self._cache_key(user_message, system_prompt, json_mode)
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                log.debug("chat() cache hit for %d chars", len(user_message))
+                return cached
+
         messages = self._build_messages(user_message, history, system_prompt, json_mode)
         log.debug("chat() → model=%s messages=%d", self.model, len(messages))
 
@@ -180,7 +181,6 @@ class LLMClient:
         content = strip_thinking(content)
         usage = raw.get("usage", {})
 
-        # Build updated history
         new_history = list(history or []) + [
             Message.user(user_message),
             Message.assistant(content),
@@ -195,6 +195,10 @@ class LLMClient:
             duration_ms=elapsed_ms,
             updated_history=new_history,
         )
+
+        # Store in cache (only for no-history calls)
+        if not history and self._cache_ttl > 0:
+            self._set_cached(cache_key, response)
 
         log.debug(
             "chat() ← %d chars, %dms, ~%d tokens",
@@ -372,3 +376,29 @@ class LLMClient:
 
     def __repr__(self) -> str:
         return f"LLMClient(model={self.model}, url={self.base_url})"
+
+    # ── Cache helpers ──────────────────────────────────────────────────────
+
+    def _cache_key(self, user_message: str, system_prompt: Optional[str], json_mode: bool) -> str:
+        import hashlib
+        raw = f"{self.model}|{system_prompt or ''}|{user_message}|{json_mode}"
+        return hashlib.md5(raw.encode()).hexdigest()
+
+    def _get_cached(self, key: str) -> Optional[LLMResponse]:
+        if key not in self._response_cache:
+            return None
+        age = time.monotonic() - self._response_cache_times.get(key, 0)
+        if age > self._cache_ttl:
+            del self._response_cache[key]
+            del self._response_cache_times[key]
+            return None
+        return self._response_cache[key]
+
+    def _set_cached(self, key: str, response: LLMResponse):
+        self._response_cache[key] = response
+        self._response_cache_times[key] = time.monotonic()
+        # Evict old entries if cache grows too large
+        if len(self._response_cache) > 100:
+            oldest = min(self._response_cache_times, key=self._response_cache_times.get)
+            del self._response_cache[oldest]
+            del self._response_cache_times[oldest]

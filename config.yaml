@@ -12,6 +12,7 @@ llm:
   max_tokens: 4096
   stream: true
   timeout: 300            # Seconds before giving up on a response
+  cache_ttl: 300          # LLM response cache TTL in seconds (0 = disabled)
 
 # ─────────────────────────────────────────────
 # Agent settings
@@ -51,6 +52,31 @@ skills:
   enabled: true
   auto_extract: true      # Automatically extract skills after each session
   max_skills: 500         # Cap on stored skills
+
+# ─────────────────────────────────────────────
+# Orchestration settings
+# ─────────────────────────────────────────────
+orchestration:
+  enabled: true           # Enable multi-agent orchestration
+  max_subtasks: 5         # Max subtasks per decomposition
+  max_retries_per_subtask: 1
+  reflection_enabled: true    # Enable self-reflection after actions
+  self_learning_enabled: true # Enable learning from mistakes
+  user_model_enabled: true    # Enable user preference learning
+  max_lessons_retrieved: 3
+  parallel_subtasks: true     # Run independent subtasks concurrently
+  sub_agent_max_steps: 5      # Max steps for sub-agents (lower = faster)
+
+# ─────────────────────────────────────────────
+# Self-learning settings
+# ─────────────────────────────────────────────
+self_learning:
+  enabled: true
+  learn_from_failures: true
+  learn_from_successes: true
+  learn_from_corrections: true
+  max_lessons: 200        # Cap on stored lessons
+  min_confidence: 0.5
 
 # ─────────────────────────────────────────────
 # Tools

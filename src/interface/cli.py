@@ -191,6 +191,9 @@ class CLI:
             "/models":   self._cmd_models,
             "/profile":  self._cmd_profile,
             "/history":  self._cmd_history,
+            "/lessons":  self._cmd_lessons,
+            "/preferences": self._cmd_preferences,
+            "/reflect":  self._cmd_reflect,
             "/help":     self._cmd_help,
         }
 
@@ -415,6 +418,79 @@ class CLI:
     def _cmd_history(self, _=""):
         count = len(self.session.messages)
         self.renderer.info(str(count) + " messages this session")
+        self.renderer.console.print()
+
+    def _cmd_lessons(self, _=""):
+        if not self.memory:
+            self.renderer.warning("Memory not available")
+            return
+
+        try:
+            results = self.memory.retrieve("lesson learned approach avoid", top_k=10)
+            lessons = [r for r in results if any(kw in r.lower() for kw in [
+                "lesson", "approach", "avoid", "pitfall", "instead",
+            ])]
+
+            if not lessons:
+                self.renderer.info("No lessons stored yet. Complete some tasks first.")
+                return
+
+            self.renderer.console.print()
+            self.renderer.console.print(
+                "  [content.skill]lessons learned[/content.skill]  "
+                f"[ui.dim]{len(lessons)} stored[/ui.dim]\n"
+            )
+            for i, lesson in enumerate(lessons, 1):
+                self.renderer.console.print(f"  [ui.dim]{i}.[/ui.dim] {lesson[:100]}")
+            self.renderer.console.print()
+
+        except Exception as e:
+            self.renderer.error("Failed to retrieve lessons: " + str(e))
+
+    def _cmd_preferences(self, _=""):
+        if not self.session:
+            self.renderer.info("Session not available")
+            return
+
+        if not hasattr(self.session, 'user_model') or not self.session.user_model:
+            self.renderer.info("User model not initialized")
+            return
+
+        prefs = self.session.user_model._preferences
+        if not prefs:
+            self.renderer.info("No preferences learned yet. Keep chatting!")
+            return
+
+        self.renderer.console.print()
+        self.renderer.console.print("  [content.skill]learned preferences[/content.skill]\n")
+        for key, pref in prefs.items():
+            self.renderer.console.print(
+                f"  [ui.dim]{pref.category}[/ui.dim] {pref.key}: "
+                f"[content.answer]{pref.value}[/content.answer] "
+                f"(confidence: {pref.confidence:.1f})"
+            )
+        self.renderer.console.print()
+
+    def _cmd_reflect(self, _=""):
+        if not self.session or not self.session.messages:
+            self.renderer.info("No recent tasks to reflect on")
+            return
+
+        last = self.session.messages[-1]
+        if not last.agent_result:
+            self.renderer.info("Last message was not an agent task")
+            return
+
+        result = last.agent_result
+        self.renderer.console.print()
+        self.renderer.console.print("  [content.skill]reflection[/content.skill]\n")
+        self.renderer.console.print(f"  Task: {result.task[:80]}")
+        self.renderer.console.print(f"  Success: {'yes' if result.success else 'no'}")
+        self.renderer.console.print(f"  Steps: {result.total_steps}")
+        self.renderer.console.print(f"  Tools used: {', '.join(result.tools_used) or 'none'}")
+
+        if result.error:
+            self.renderer.console.print(f"  [ui.warning]Error: {result.error}[/ui.warning]")
         self.renderer.console.print()
 
     def _cmd_help(self, _=""):

@@ -29,6 +29,7 @@ class Agent:
         skill_manager=None,     # SkillManager
         router=None,            # ModelRouter
         on_step: Optional[Callable[[AgentStep], None]] = None,
+        role_prompt: Optional[str] = None,
     ):
         self.llm = llm or LLMClient()
         self.tool_registry = tool_registry
@@ -39,6 +40,7 @@ class Agent:
         self.prompt_builder = PromptBuilder()
         self.max_steps = cfg.agent.max_steps
         self.max_retries = cfg.agent.max_retries
+        self._role_prompt = role_prompt
 
         log.info("Agent initialised: model=%s max_steps=%d", self.llm.model, self.max_steps)
 
@@ -49,6 +51,13 @@ class Agent:
         tools_used: List[str] = []
         tools_seen = set()
         history: List[Message] = []
+        
+        # Loop detection tracking
+        recent_actions = []  # List of (tool_name, tool_input_hash) tuples
+        MAX_RECENT_ACTIONS = 3
+        
+        # Progress tracking
+        accomplishments = []  # List of what has been done
 
         # ── Auto-route to best model for this task ─────────────────────────
         if self.router:
@@ -70,6 +79,7 @@ class Agent:
             tool_schemas=tool_schemas,
             memory_snippets=memory_snippets,
             skill_context=skill_context,
+            role_prompt=self._role_prompt,
         )
 
         user_message = task
@@ -138,22 +148,60 @@ class Agent:
                     tools_seen.add(tool_call.name)
                     tools_used.append(tool_call.name)
 
-                observe_step = AgentStep(
-                    step_type=StepType.OBSERVE,
-                    content=tool_result_text[:500],
-                )
-                steps.append(observe_step)
-                self._emit(observe_step)
+                # Track accomplishments
+                if tool_result.success:
+                    if tool_call.name == "filesystem":
+                        action = tool_call.input.get("action", "")
+                        path = tool_call.input.get("path", "")
+                        if action == "write":
+                            accomplishments.append(f"Created/updated file: {path}")
+                        elif action == "read":
+                            accomplishments.append(f"Read file: {path}")
+                        elif action == "delete":
+                            accomplishments.append(f"Deleted: {path}")
+                        elif action == "mkdir":
+                            accomplishments.append(f"Created directory: {path}")
+                    elif tool_call.name == "terminal":
+                        accomplishments.append(f"Executed command")
 
-                observe_message = self.prompt_builder.build_tool_result_prompt(
-                    tool_name=tool_call.name,
-                    tool_result=tool_result_text,
-                    available_tools=tool_names,
-                )
+                # Loop detection
+                action_key = (tool_call.name, str(sorted(tool_call.input.items())))
+                if action_key in recent_actions:
+                    log.warning("Loop detected: repeating action %s", action_key)
+                    loop_step = AgentStep(
+                        step_type=StepType.REASON,
+                        content=f"Loop detected: repeating action {tool_call.name}. Consider trying a different approach or completing the task.",
+                        status=StepStatus.FAILED,
+                    )
+                    steps.append(loop_step)
+                    self._emit(loop_step)
+                    user_message = (
+                        f"You just performed the same action ({tool_call.name}) again. "
+                        "This suggests you might be stuck in a loop. "
+                        "Please either complete the task with a final_answer or try a different approach."
+                    )
+                else:
+                    recent_actions.append(action_key)
+                    if len(recent_actions) > MAX_RECENT_ACTIONS:
+                        recent_actions.pop(0)
+                    
+                    observe_step = AgentStep(
+                        step_type=StepType.OBSERVE,
+                        content=tool_result_text[:500],
+                    )
+                    steps.append(observe_step)
+                    self._emit(observe_step)
 
-                history.append(Message.user(user_message))
-                history.append(Message.assistant(self._decision_to_json(decision)))
-                user_message = observe_message
+                    observe_message = self.prompt_builder.build_tool_result_prompt(
+                        tool_name=tool_call.name,
+                        tool_result=tool_result_text,
+                        available_tools=tool_names,
+                        accomplishments=accomplishments,
+                    )
+
+                    history.append(Message.user(user_message))
+                    history.append(Message.assistant(self._decision_to_json(decision)))
+                    user_message = observe_message
 
             else:
                 log.warning("No tool call and no final answer at iteration %d", iteration + 1)
@@ -164,9 +212,16 @@ class Agent:
                 )
                 steps.append(confusion_step)
                 self._emit(confusion_step)
+                
+                # Include accomplishments in the prompt
+                progress_text = ""
+                if accomplishments:
+                    progress_text = "\n\nWhat you've accomplished so far:\n" + "\n".join(f"- {a}" for a in accomplishments)
+                
                 user_message = (
                     "You must either use a tool from the available list "
                     "or provide a final_answer. Please conclude now."
+                    f"{progress_text}"
                 )
 
         # ── Max steps hit ──────────────────────────────────────────────────

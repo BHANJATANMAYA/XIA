@@ -114,9 +114,15 @@ Date: {date}
         tool_schemas: Optional[str] = None,
         memory_snippets: Optional[List[str]] = None,
         skill_context: Optional[str] = None,
+        role_prompt: Optional[str] = None,
     ) -> str:
         _, agent_soul = load_soul_from_file()
-        prompt_template = agent_soul + """
+
+        role_section = ""
+        if role_prompt:
+            role_section = f"\n\nYour role: {role_prompt}\n"
+
+        prompt_template = agent_soul + role_section + """
 
 Date: {date}
 Workspace: {workspace_path}
@@ -147,12 +153,17 @@ Tools (only use these): {tool_list}
         tool_name: str,
         tool_result: str,
         available_tools: Optional[List[str]] = None,
+        accomplishments: Optional[List[str]] = None,
     ) -> str:
+        progress_section = ""
+        if accomplishments:
+            progress_section = "\n\nProgress so far:\n" + "\n".join(f"- {a}" for a in accomplishments)
+        
         return TOOL_RESULT_TEMPLATE.format(
             tool_name=tool_name,
             tool_result=tool_result[0:2000],
             available_tools=", ".join(available_tools) if available_tools else "none",
-        )
+        ) + progress_section
 
     def _now(self) -> str:
         return datetime.now().strftime("%A, %d %B %Y %H:%M")

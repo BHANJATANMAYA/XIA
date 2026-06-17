@@ -32,6 +32,7 @@ class LLMConfig:
     max_tokens: int = 4096
     stream: bool = True
     timeout: int = 120
+    cache_ttl: int = 300
 
 
 @dataclass
@@ -116,6 +117,29 @@ class LoggingConfig:
 
 
 @dataclass
+class OrchestrationConfig:
+    enabled: bool = True
+    max_subtasks: int = 5
+    max_retries_per_subtask: int = 1
+    reflection_enabled: bool = True
+    self_learning_enabled: bool = True
+    user_model_enabled: bool = True
+    max_lessons_retrieved: int = 3
+    parallel_subtasks: bool = True
+    sub_agent_max_steps: int = 5
+
+
+@dataclass
+class SelfLearningConfig:
+    enabled: bool = True
+    learn_from_failures: bool = True
+    learn_from_successes: bool = True
+    learn_from_corrections: bool = True
+    max_lessons: int = 200
+    min_confidence: float = 0.5
+
+
+@dataclass
 class Config:
     llm: LLMConfig = field(default_factory=LLMConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
@@ -124,6 +148,8 @@ class Config:
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     interface: InterfaceConfig = field(default_factory=InterfaceConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
+    self_learning: SelfLearningConfig = field(default_factory=SelfLearningConfig)
 
 
 # ── Loader ────────────────────────────────────────────────────────────────────
@@ -169,6 +195,8 @@ def _build_config(raw: dict) -> Config:
     tools_raw = raw.get("tools", {})
     iface_raw = raw.get("interface", {})
     log_raw = raw.get("logging", {})
+    orch_raw = raw.get("orchestration", {})
+    learn_raw = raw.get("self_learning", {})
 
     return Config(
         llm=LLMConfig(**{k: v for k, v in llm_raw.items() if k in LLMConfig.__dataclass_fields__}),
@@ -182,6 +210,8 @@ def _build_config(raw: dict) -> Config:
         ),
         interface=InterfaceConfig(**{k: v for k, v in iface_raw.items() if k in InterfaceConfig.__dataclass_fields__}),
         logging=LoggingConfig(**{k: v for k, v in log_raw.items() if k in LoggingConfig.__dataclass_fields__}),
+        orchestration=OrchestrationConfig(**{k: v for k, v in orch_raw.items() if k in OrchestrationConfig.__dataclass_fields__}),
+        self_learning=SelfLearningConfig(**{k: v for k, v in learn_raw.items() if k in SelfLearningConfig.__dataclass_fields__}),
     )
 
 

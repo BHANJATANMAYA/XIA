@@ -2,13 +2,41 @@
 tools/registry.py — Tool Registry
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 
 from agent.base import ToolCall, ToolResult
 from tools.base import BaseTool
 from core.logger import get_logger
 
 log = get_logger(__name__)
+
+# Map common action names to (tool_name, default_input) tuples
+# This handles cases where LLM generates "write" instead of "filesystem" with action "write"
+ACTION_TO_TOOL_MAP: Dict[str, Tuple[str, Dict[str, Any]]] = {
+    "write": ("filesystem", {"action": "write"}),
+    "read": ("filesystem", {"action": "read"}),
+    "create": ("filesystem", {"action": "write"}),
+    "delete": ("filesystem", {"action": "delete"}),
+    "remove": ("filesystem", {"action": "delete"}),
+    "list": ("filesystem", {"action": "list"}),
+    "ls": ("filesystem", {"action": "list"}),
+    "mkdir": ("filesystem", {"action": "mkdir"}),
+    "makedir": ("filesystem", {"action": "mkdir"}),
+    "exists": ("filesystem", {"action": "exists"}),
+    "info": ("filesystem", {"action": "info"}),
+    "run": ("terminal", {}),
+    "execute": ("terminal", {}),
+    "exec": ("terminal", {}),
+    "shell": ("terminal", {}),
+    "terminal": ("terminal", {}),
+    "search": ("search", {}),
+    "find": ("search", {}),
+    "browse": ("browser", {}),
+    "open": ("browser", {}),
+    "fetch": ("fetch", {}),
+    "get": ("fetch", {}),
+    "download": ("fetch", {}),
+}
 
 
 def _normalize_tool_name(name: str) -> str:
@@ -44,6 +72,14 @@ class ToolRegistry:
         return "\n\n".join(t.schema().to_prompt_str() for t in self._tools.values())
 
     def execute(self, tool_call: ToolCall) -> ToolResult:
+        # Check if this is an action-based tool call (e.g., "write" -> "filesystem" with action "write")
+        if tool_call.name in ACTION_TO_TOOL_MAP:
+            tool_name, default_input = ACTION_TO_TOOL_MAP[tool_call.name]
+            merged_input = {**default_input, **tool_call.input}
+            tool_call = ToolCall(name=tool_name, input=merged_input)
+            log.info("Mapped action '%s' to tool '%s' with input: %s", 
+                     tool_call.name, tool_name, str(merged_input)[:120])
+
         tool = self._tools.get(tool_call.name)
 
         if tool is None:

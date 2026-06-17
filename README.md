@@ -52,6 +52,11 @@ XIA follows an autonomous **THINK ➔ PLAN ➔ ACT ➔ OBSERVE** loop:
 3.  **ACT**: Invokes the selected tool with structured parameters.
 4.  **OBSERVE**: Inspects the tool's result, updates state, and continues until a final answer is produced.
 
+#### Loop Detection & Progress Tracking
+- **Action-to-Tool Mapping**: Automatically maps common action names (e.g., `write`, `read`, `create`) to the correct tool and action combination, preventing tool name mismatches.
+- **Loop Detection**: Tracks recent actions and detects when the agent repeats the same action, providing guidance to try a different approach.
+- **Progress Tracking**: Monitors accomplishments (files created, commands executed) and includes this context in prompts to help the agent recognize task completion.
+
 ### 2. Layered Memory System
 Memory is divided into layers for fast retrieval and deep contextual awareness:
 -   **Working Memory**: RAM cache containing recent interaction context.
@@ -111,6 +116,17 @@ cp .env.example .env
 *   📄 **Fetch**: Extracts and converts raw web pages and articles to clean markdown text.
 *   👁️ **Browser**: Playwright-controlled headless Chromium instance to click, scroll, fill forms, and scrape data.
 
+### Smart Tool Routing
+XIA includes intelligent action-to-tool mapping that automatically resolves common action names to the correct tool:
+- `write`, `create` → Filesystem (write action)
+- `read` → Filesystem (read action)
+- `delete`, `remove` → Filesystem (delete action)
+- `list`, `ls` → Filesystem (list action)
+- `run`, `execute`, `exec`, `shell` → Terminal
+- `search`, `find` → Search tool
+- `browse`, `open` → Browser tool
+- `fetch`, `get`, `download` → Fetch tool
+
 ---
 
 ## 💬 Command Console
@@ -123,11 +139,17 @@ During active terminal sessions, use the following commands:
 *   `/skills` - List all self-evolved skills.
 *   `/tools` - List registered agent tools.
 *   `/models` - View downloaded models and active routing profiles.
-*   `/model <name>` - Swap the current LLM model on the fly.
+*   `/model <name>` or `/use_model <name>` - Swap the current LLM model on the fly.
+*   `/set_default_model <name>` - Set the default model in config.yaml permanently.
 *   `/profile <name>` - Switch routing profile (`coding` / `fast` / `smart` / `default`).
+*   `/history` - Show message count for current session.
+*   `/lessons` - Show lessons learned from past tasks.
+*   `/preferences` - Show learned user preferences.
+*   `/reflect` - Reflect on the last agent task (success, steps, tools used).
 *   `/save` - Persist the current session conversation log.
 *   `/clear` - Clear the CLI chat screen history.
 *   `/exit` or `/quit` - Close the agent session cleanly.
+*   `/end` - Shut down xia AND forcefully stop ALL ollama processes.
 
 ---
 
