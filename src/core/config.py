@@ -109,6 +109,21 @@ class InterfaceConfig:
 
 
 @dataclass
+class VoiceConfig:
+    enabled: bool = True
+    model: str = "base.en"
+    language: str = "en"
+    sample_rate: int = 16000
+    max_record_seconds: int = 30
+    silence_seconds: float = 1.2
+    silence_threshold: float = 0.015
+    device: Optional[str] = None
+    confirm_transcript: bool = False
+    speak_responses: bool = False
+    speech_rate: int = 180
+
+
+@dataclass
 class LoggingConfig:
     level: str = "INFO"
     log_to_file: bool = True
@@ -147,6 +162,7 @@ class Config:
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     interface: InterfaceConfig = field(default_factory=InterfaceConfig)
+    voice: VoiceConfig = field(default_factory=VoiceConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
     self_learning: SelfLearningConfig = field(default_factory=SelfLearningConfig)
@@ -194,6 +210,7 @@ def _build_config(raw: dict) -> Config:
     skills_raw = raw.get("skills", {})
     tools_raw = raw.get("tools", {})
     iface_raw = raw.get("interface", {})
+    voice_raw = raw.get("voice", {})
     log_raw = raw.get("logging", {})
     orch_raw = raw.get("orchestration", {})
     learn_raw = raw.get("self_learning", {})
@@ -209,6 +226,7 @@ def _build_config(raw: dict) -> Config:
             search=SearchToolConfig(**{k: v for k, v in tools_raw.get("search", {}).items() if k in SearchToolConfig.__dataclass_fields__}),
         ),
         interface=InterfaceConfig(**{k: v for k, v in iface_raw.items() if k in InterfaceConfig.__dataclass_fields__}),
+        voice=VoiceConfig(**{k: v for k, v in voice_raw.items() if k in VoiceConfig.__dataclass_fields__}),
         logging=LoggingConfig(**{k: v for k, v in log_raw.items() if k in LoggingConfig.__dataclass_fields__}),
         orchestration=OrchestrationConfig(**{k: v for k, v in orch_raw.items() if k in OrchestrationConfig.__dataclass_fields__}),
         self_learning=SelfLearningConfig(**{k: v for k, v in learn_raw.items() if k in SelfLearningConfig.__dataclass_fields__}),

@@ -25,6 +25,9 @@ class CLI:
         self.skills   = None
         self.llm      = None
         self.router   = None
+        self.voice    = None
+        self.speaker  = None
+        self.voice_mode = False
 
     def run(self):
         if sys.platform == "win32":
@@ -126,14 +129,19 @@ class CLI:
 
     def _main_loop(self):
         while True:
-            try:
-                user_input = Prompt.ask(
-                    "\n  [ui.prompt]you[/ui.prompt]",
-                    console=self.renderer.console,
-                )
-            except (KeyboardInterrupt, EOFError):
-                self._shutdown()
-                return
+            if self.voice_mode:
+                user_input = self._listen_for_voice()
+                if user_input is None:
+                    continue
+            else:
+                try:
+                    user_input = Prompt.ask(
+                        "\n  [ui.prompt]you[/ui.prompt]",
+                        console=self.renderer.console,
+                    )
+                except (KeyboardInterrupt, EOFError):
+                    self._shutdown()
+                    return
 
             user_input = user_input.strip()
             if not user_input:
@@ -153,6 +161,7 @@ class CLI:
                 answer=result.final_answer,
                 tools_used=result.tools_used if result.tools_used else None,
             )
+            self._speak_answer(result.final_answer)
         except KeyboardInterrupt:
             self.renderer.print_thinking_stop()
             self.renderer.warning("interrupted")
@@ -194,6 +203,7 @@ class CLI:
             "/lessons":  self._cmd_lessons,
             "/preferences": self._cmd_preferences,
             "/reflect":  self._cmd_reflect,
+            "/voice":    self._cmd_voice,
             "/help":     self._cmd_help,
         }
 
@@ -202,6 +212,95 @@ class CLI:
             handler(args)
         else:
             self.renderer.warning("Unknown command: " + cmd + "  (type /help)")
+
+    def _listen_for_voice(self):
+        if not cfg.voice.enabled:
+            self.renderer.warning("Voice commands are disabled in config.yaml")
+            self.voice_mode = False
+            return None
+        try:
+            if self.voice is None:
+                from interface.voice import VoiceInput
+                self.voice = VoiceInput(cfg.voice, PATHS.models_dir)
+                self.renderer.info("preparing local voice model (first use may take a moment)")
+                self.voice.prepare()
+            self.renderer.info("listening — speak now (I will stop after a short pause)")
+            result = self.voice.listen()
+            self.renderer.success("heard: " + result.text)
+            if cfg.voice.confirm_transcript and not self._confirm_voice_transcript(result.text):
+                self.renderer.info("voice request cancelled")
+                return None
+            return result.text
+        except KeyboardInterrupt:
+            self.renderer.warning("voice capture cancelled")
+        except Exception as e:
+            self.renderer.warning(str(e))
+        if self.voice_mode:
+            self.voice_mode = False
+            self.renderer.info("voice mode off — returning to typed input")
+        return None
+
+    def _confirm_voice_transcript(self, text: str) -> bool:
+        confirmation = Prompt.ask(
+            "  [ui.warning]send this transcription?[/ui.warning]",
+            choices=["yes", "no"],
+            default="yes",
+            console=self.renderer.console,
+        )
+        return confirmation == "yes"
+
+    def _speak_answer(self, answer: str):
+        if not cfg.voice.speak_responses:
+            return
+        try:
+            if self.speaker is None:
+                from interface.voice import SpeechOutput
+                self.speaker = SpeechOutput(cfg.voice.speech_rate)
+            self.speaker.speak(answer)
+        except Exception as e:
+            self.renderer.warning(str(e))
+            cfg.voice.speak_responses = False
+
+    def _cmd_voice(self, mode: str = ""):
+        choice = mode.strip().lower()
+        if choice == "devices":
+            try:
+                from interface.voice import VoiceInput
+                devices = VoiceInput.input_devices()
+                if devices:
+                    self.renderer.info("microphones: " + " | ".join(devices))
+                else:
+                    self.renderer.warning("No input microphones were found")
+            except Exception as e:
+                self.renderer.warning(str(e))
+            return
+        if choice in {"speak on", "speech on"}:
+            cfg.voice.speak_responses = True
+            self.renderer.success("spoken replies on")
+            return
+        if choice in {"speak off", "speech off"}:
+            cfg.voice.speak_responses = False
+            self.renderer.success("spoken replies off")
+            return
+        if choice in {"on", "continuous"}:
+            self.voice_mode = True
+            self.renderer.success("voice mode on — say 'stop listening' to return to typing")
+            return
+        if choice in {"off", "stop"}:
+            self.voice_mode = False
+            self.renderer.success("voice mode off")
+            return
+        if choice:
+            self.renderer.warning("Usage: /voice [on|off|devices|speak on|speak off]")
+            return
+
+        user_input = self._listen_for_voice()
+        if not user_input:
+            return
+        if user_input.startswith("/"):
+            self._handle_command(user_input)
+        else:
+            self._handle_message(user_input)
 
     def _cmd_exit(self, _=""):
         self._shutdown()

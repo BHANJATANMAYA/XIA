@@ -66,8 +66,10 @@ def find_xia_root() -> Path:
 
 ROOT        = find_xia_root()
 VENV_DIR    = ROOT / ".venv"
-VENV_PY     = VENV_DIR / "Scripts" / "python.exe"
-VENV_PIP    = VENV_DIR / "Scripts" / "pip.exe"
+if sys.platform == "win32":
+    VENV_PY = VENV_DIR / "Scripts" / "python.exe"
+else:
+    VENV_PY = VENV_DIR / "bin" / "python"
 REQ_FILE    = ROOT / "requirements.txt"
 MAIN_PY     = ROOT / "main.py"
 STAMP       = VENV_DIR / ".install_stamp"
@@ -99,24 +101,43 @@ def ensure_venv():
     start_step("environment")
 
     if VENV_PY.exists():
-        # Validate the venv actually works on THIS machine.
+        # Validate the venv binary works on THIS machine.
         probe = subprocess.run(
-            [str(VENV_PY), "--version"],
+            [str(VENV_PY), "-c", "import sys"],
             capture_output=True, text=True,
         )
         if probe.returncode == 0:
             end_step("environment", "ok")
             return
 
-        print_sub("stale environment detected, rebuilding...", C.YELLOW)
+        print_sub("stale/broken virtual environment detected.", C.YELLOW)
+        # If we ARE the venv python we can't delete ourselves.
+        if Path(sys.executable).resolve() == VENV_PY.resolve():
+            launcher = "run.bat" if sys.platform == "win32" else "run.sh"
+            print_sub(f"Please run {launcher} to automatically rebuild the environment.", C.RED)
+            sys.exit(1)
+
         import shutil
         shutil.rmtree(str(VENV_DIR), ignore_errors=True)
+        if STAMP.exists():
+            try:
+                STAMP.unlink()
+            except Exception:
+                pass
 
-    print_sub("creating virtual environment (first time on this machine)...")
+        if VENV_DIR.exists():
+            print_sub("Cannot delete old .venv (files are locked). Close all xia windows and re-run.", C.RED)
+            sys.exit(1)
+
+    print_sub("creating virtual environment...")
     result = subprocess.run([sys.executable, "-m", "venv", str(VENV_DIR)])
     if result.returncode != 0:
         end_step("environment", "failed", C.RED)
+        print_sub(f"venv creation failed. Try running as administrator or check disk space.", C.RED)
         sys.exit(1)
+
+    # Bootstrap pip using ensurepip (avoids network/certifi issues)
+    subprocess.run([str(VENV_PY), "-m", "ensurepip", "--upgrade"], capture_output=True)
     end_step("environment", "created")
 
 
@@ -128,28 +149,35 @@ def ensure_dependencies():
         end_step("dependencies", "missing", C.YELLOW)
         return
 
+    # Check if already installed
+    probe = subprocess.run(
+        [str(VENV_PY), "-c", "import dotenv, yaml, rich, ollama"],
+        capture_output=True, text=True,
+    )
     current = req_hash()
-    if STAMP.exists() and STAMP.read_text().strip() == current:
+    if probe.returncode == 0 and STAMP.exists() and STAMP.read_text().strip() == current:
         end_step("dependencies", "ok")
         return
 
-    # Installing - run with inline spinner
     import tempfile
     with tempfile.TemporaryFile(mode='w+', encoding='utf-8') as temp_err:
-        process = subprocess.Popen([
-            str(VENV_PY), "-m", "pip", "install",
-            "-r", str(REQ_FILE),
-            "--disable-pip-version-check",
-            "--quiet",
-        ], stdout=subprocess.DEVNULL, stderr=temp_err)
-        
+        process = subprocess.Popen(
+            [str(VENV_PY), "-m", "pip", "install",
+                "-r", str(REQ_FILE),
+                "--upgrade",
+                "--disable-pip-version-check",
+                "--quiet",
+            ],
+            stdout=subprocess.DEVNULL, stderr=temp_err
+        )
+
         spinner = ["|", "/", "-", "\\"]
         i = 0
         while process.poll() is None:
             print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{'dependencies':<26}{C.RESET} [{C.CYAN}{spinner[i % len(spinner)]}{C.RESET}] installing...", end="", flush=True)
             i += 1
             time.sleep(0.1)
-            
+
         if process.returncode != 0:
             print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{'dependencies':<26}{C.RESET} [{C.RED}failed{C.RESET}]" + " " * 20, flush=True)
             temp_err.seek(0)
@@ -200,7 +228,7 @@ def detect_host() -> dict:
         _apply_host_env(cached)
         return cached
 
-    host = {"cpu_cores": os.cpu_count() or 1, "ram_gb": 8.0, "has_gpu": False}
+    host: dict = {"cpu_cores": os.cpu_count() or 1, "ram_gb": 8.0, "has_gpu": False, "gpu_name": "CPU only"}
 
     # RAM
     try:
@@ -254,7 +282,7 @@ def server_running() -> bool:
 
 
 def ensure_ollama():
-    model = read_config("llm.model", "mistral")
+    model = str(read_config("llm.model", "mistral") or "mistral")
     start_step(f"model server ({model})")
 
     if not shutil.which("ollama"):
@@ -266,9 +294,19 @@ def ensure_ollama():
             os.environ["PATH"] = str(default_install) + os.pathsep + os.environ.get("PATH", "")
 
     if not shutil.which("ollama"):
+        if sys.platform != "win32":
+            print_sub(
+                "Install Ollama from https://ollama.com/download, then re-run run.sh.",
+                C.YELLOW,
+            )
+            end_step(f"model server ({model})", "failed", C.RED)
+            sys.exit(1)
         print()
         print_sub("Ollama not found on this machine.", C.YELLOW)
-        answer = input("  Install Ollama now? [y/N]: ").strip().lower()
+        try:
+            answer = input("  Install Ollama now? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = "n"
         if answer not in {"y", "yes"}:
             print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model})':<26}{C.RESET} [{C.RED}failed{C.RESET}]", flush=True)
             sys.exit(1)
@@ -299,6 +337,10 @@ def ensure_ollama():
 
 
 def _install_ollama():
+    if sys.platform != "win32":
+        print_sub("Automatic Ollama installation is only supported on Windows.", C.RED)
+        sys.exit(1)
+
     installer = Path(os.environ.get("TEMP", ROOT)) / "OllamaSetup.exe"
     print_sub("Downloading Ollama installer...")
     try:
@@ -341,7 +383,10 @@ def _ensure_model(model: str) -> bool:
 
     print()
     print_sub(f"Model '{model}' not downloaded yet (~4-5GB).", C.YELLOW)
-    answer = input(f"  Download '{model}' now? [y/N]: ").strip().lower()
+    try:
+        answer = input(f"  Download '{model}' now? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        answer = "n"
     if answer not in {"y", "yes"}:
         print_sub(f"Skipping model download. Run manually: ollama pull {model}", C.YELLOW)
         return True
@@ -411,7 +456,7 @@ def launch():
 
 def main():
     if sys.platform == "win32":
-        os.system("")
+        subprocess.run("", shell=True)
 
     print()
     print(f"  {C.PURPLE}xia{C.RESET}  -  booting...")

@@ -86,9 +86,12 @@ The prompt builder (`src/core/prompt.py`) parses this file dynamically, applying
 ### 1. Bootstrapping
 XIA is completely self-contained. Clone the repository and run the bootstrapper:
 -   **Windows**: Double-click [run.bat](run.bat) (or run `python launch.py` in PowerShell)
--   **macOS / Linux**: Run `python3 launch.py`
+-   **macOS / Linux**: Run `bash run.sh`
 
 The bootstrapper will automatically create a virtual environment (`.venv/`), install dependency packages, search for GPU support, start the local Ollama daemon, and download the default model weights.
+
+### Voice Control
+After startup, type `/voice` and speak a request. Use `/voice on` for continuous hands-free requests, `/voice devices` to list microphones, and `/voice speak on` for local spoken replies. Audio is transcribed locally; the Whisper model is downloaded once into `models/whisper` on first use. Configure the model, microphone, confirmation prompt, and speech settings in `config.yaml`.
 
 ### 2. Optional: Add Browser Support
 To allow XIA to browse the web, click links, and summarize pages using Playwright, run the browser installer:

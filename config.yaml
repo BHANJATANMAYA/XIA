@@ -110,6 +110,22 @@ interface:
   show_tool_calls: true
 
 # ─────────────────────────────────────────────
+# Voice commands — local microphone transcription
+# The model downloads once to models/whisper, then works offline.
+# ─────────────────────────────────────────────
+voice:
+  enabled: true
+  model: base.en          # tiny.en is faster; small.en is more accurate
+  language: en
+  sample_rate: 16000
+  max_record_seconds: 30
+  silence_seconds: 1.2    # Finish after this much silence once speech begins
+  silence_threshold: 0.015
+  confirm_transcript: false  # Set true to review each transcription before sending
+  speak_responses: false     # Set true for local spoken replies
+  speech_rate: 180
+
+# ─────────────────────────────────────────────
 # Logging
 # ─────────────────────────────────────────────
 logging:

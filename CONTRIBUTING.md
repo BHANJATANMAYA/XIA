@@ -53,7 +53,7 @@ cd xia
 ### 3. Let the Bootstrapper Initialize
 Instead of manually creating virtual environments and installing packages, run the bootstrapper:
 - **Windows**: Run `run.bat` or `.venv\Scripts\python launch.py`
-- **macOS/Linux**: Run `python3 launch.py`
+- **macOS/Linux**: Run `bash run.sh`
 
 The bootstrapper will automatically:
 1. Create a virtual environment under `.venv/`

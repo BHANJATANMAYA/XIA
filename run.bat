@@ -4,154 +4,163 @@ set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 title xia - Starting...
 
-REM -- Locate SSD root (always relative, drive-letter agnostic)
+REM -- Locate root (always relative to this .bat file, drive-letter agnostic)
 set "XIA_ROOT=%~dp0"
 if "%XIA_ROOT:~-1%"=="\" set "XIA_ROOT=%XIA_ROOT:~0,-1%"
 
 REM -- Key paths
 set "XIA_VENV=%XIA_ROOT%\.venv"
 set "XIA_PYTHON=%XIA_VENV%\Scripts\python.exe"
-set "XIA_INSTALLERS=%XIA_ROOT%\installers"
-set "XIA_PY_INSTALLER=%XIA_INSTALLERS%\python-3.12.4-amd64.exe"
-set "XIA_OLLAMA_INSTALLER=%XIA_INSTALLERS%\OllamaSetup.exe"
-set "PY_DOWNLOAD_URL=https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
-set "OLLAMA_DOWNLOAD_URL=https://ollama.com/download/OllamaSetup.exe"
 set "SYS_PYTHON="
 
-REM -- Set Ollama and Cache storage paths BEFORE anything starts
+REM -- Ollama and cache storage paths (portable, no host footprint)
 set "OLLAMA_MODELS=%XIA_ROOT%\models\ollama"
 set "OLLAMA_HOME=%XIA_ROOT%\models\ollama"
 set "PLAYWRIGHT_BROWSERS_PATH=%XIA_ROOT%\models\playwright"
 set "HF_HOME=%XIA_ROOT%\models\hf_home"
 set "PIP_NO_CACHE_DIR=1"
 
-REM -- Fast Path: If venv works, jump straight to launch.py
+REM ============================================================
+REM  FAST PATH: venv exists and all core modules import cleanly
+REM ============================================================
 if exist "%XIA_PYTHON%" (
-    "%XIA_PYTHON%" --version >nul 2>&1
+    "%XIA_PYTHON%" -c "import pip, dotenv, yaml, rich, ollama" >nul 2>&1
     if !errorlevel! equ 0 (
         "%XIA_PYTHON%" "%XIA_ROOT%\launch.py"
         exit /b !errorlevel!
     )
-    REM Venv exists but won't run (e.g. stale from another machine)
-    rmdir /s /q "%XIA_VENV%" >nul 2>&1
 )
 
-REM -- Setup Mode Header
+REM ============================================================
+REM  SETUP MODE: venv missing, broken or stale
+REM ============================================================
 echo.
 echo   xia  -  initial setup...
 echo.
 
-if not exist "%XIA_INSTALLERS%"    mkdir "%XIA_INSTALLERS%"
-if not exist "%OLLAMA_MODELS%"     mkdir "%OLLAMA_MODELS%"
+if not exist "%XIA_ROOT%\models\ollama" mkdir "%XIA_ROOT%\models\ollama"
 
-REM -- Step 1: Find or Install Python
+REM -- Step 1: Find system Python ------------------------------------------
 echo   *  checking host python...
 
 call :find_system_python
 if defined SYS_PYTHON (
     echo      - found system python: !SYS_PYTHON!
-    goto :build_venv
+    goto :delete_old_venv
 )
 
 echo      - host python not found
-echo   *  downloading python 3.12.4...
-if exist "%XIA_PY_INSTALLER%" (
-    echo      - using cached installers\python-3.12.4-amd64.exe
-    goto :install_python
+echo.
+echo   [ERROR] Python 3.11+ is required but was not found on this machine.
+echo   Please install Python from https://python.org and re-run run.bat.
+echo.
+pause >nul
+exit /b 1
+
+REM -- Step 2: Delete stale/locked venv ------------------------------------
+:delete_old_venv
+if not exist "%XIA_VENV%" goto :build_venv
+
+echo   *  removing old virtual environment...
+rd /s /q "%XIA_VENV%" >nul 2>&1
+
+if exist "%XIA_VENV%" (
+    echo      - retrying deletion (files may be in use)...
+    timeout /t 2 /nobreak >nul
+    rd /s /q "%XIA_VENV%" >nul 2>&1
 )
 
-curl -L -o "%XIA_PY_INSTALLER%" "%PY_DOWNLOAD_URL%"
-if !errorlevel! neq 0 (
-    del /f /q "%XIA_PY_INSTALLER%" >nul 2>&1
+if exist "%XIA_VENV%" (
     echo.
-    echo   [ERROR] Cannot download Python automatically.
-    echo   Please install Python 3.11+ manually and re-run run.bat.
+    echo   [ERROR] Cannot delete old .venv - files are locked by another process.
+    echo   Close any terminals or programs using xia, then re-run run.bat.
     echo.
     pause >nul
     exit /b 1
 )
 
-:install_python
-echo   *  installing python 3.12.4 (please wait)...
-"%XIA_PY_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_pip=1 Include_test=0 Include_doc=0
-if !errorlevel! neq 0 (
-    echo.
-    echo   [ERROR] Python installation failed (code: !errorlevel!).
-    echo   Try running manually: %XIA_PY_INSTALLER%
-    echo.
-    pause >nul
-    exit /b 1
-)
-
-call :find_system_python
-if not defined SYS_PYTHON (
-    echo.
-    echo   [ERROR] Python installed but cannot be located in PATH.
-    echo   Please restart this terminal window and re-run run.bat.
-    echo.
-    pause >nul
-    exit /b 1
-)
-
+REM -- Step 3: Build fresh venv --------------------------------------------
 :build_venv
 echo   *  building virtual environment...
+
 "!SYS_PYTHON!" -m venv "%XIA_VENV%"
 if !errorlevel! neq 0 (
     echo.
     echo   [ERROR] Failed to create virtual environment.
+    echo   Try running run.bat as Administrator, or check that %XIA_ROOT% is writable.
     echo.
     pause >nul
     exit /b 1
 )
 
-"%XIA_PYTHON%" --version >nul 2>&1
+"%XIA_PYTHON%" -c "import sys" >nul 2>&1
 if !errorlevel! neq 0 (
-    echo   [ERROR] Venv created but Python won't run inside it.
+    echo.
+    echo   [ERROR] New venv is broken. Re-run run.bat to try again.
+    echo.
     pause >nul
     exit /b 1
 )
 
-REM -- Step 2: Handoff to launch.py
+REM -- Step 4: Bootstrap pip (use system pip to avoid TLS cert issues) -----
+echo   *  bootstrapping pip...
+
+REM Upgrade pip inside the venv via system python (bypasses certifi path bug)
+"!SYS_PYTHON!" -m pip install --quiet --upgrade pip --target "%XIA_VENV%\Lib\site-packages" >nul 2>&1
+if !errorlevel! neq 0 (
+    REM Fallback: use ensurepip bundled with Python
+    "%XIA_PYTHON%" -m ensurepip --upgrade >nul 2>&1
+)
+
+REM -- Step 5: Handoff to launch.py ----------------------------------------
 echo      - virtual environment ready
 echo.
 "%XIA_PYTHON%" "%XIA_ROOT%\launch.py"
 exit /b !errorlevel!
 
-REM -- Subroutine: Locate System Python
+
+REM ============================================================
+REM  SUBROUTINE: Locate system Python 3.11+
+REM ============================================================
 :find_system_python
 set "SYS_PYTHON="
 
+REM User-installed Python (most common path on Windows)
 for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
     if exist "%%D\python.exe" (
-        "%%D\python.exe" --version >nul 2>&1
+        "%%D\python.exe" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
         if !errorlevel! equ 0 set "SYS_PYTHON=%%D\python.exe"
     )
 )
 if defined SYS_PYTHON exit /b 0
 
+REM System-wide Python installs
 for /d %%D in ("%ProgramFiles%\Python3*") do (
     if exist "%%D\python.exe" (
-        "%%D\python.exe" --version >nul 2>&1
+        "%%D\python.exe" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
         if !errorlevel! equ 0 set "SYS_PYTHON=%%D\python.exe"
     )
 )
 if defined SYS_PYTHON exit /b 0
 
+REM Try py launcher
 where py >nul 2>&1
 if !errorlevel! equ 0 (
-    py --version >nul 2>&1
+    py -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
     if !errorlevel! equ 0 ( set "SYS_PYTHON=py" & exit /b 0 )
 )
 
+REM Try python in PATH
 where python >nul 2>&1
 if !errorlevel! equ 0 (
-    python --version >nul 2>&1
+    python -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
     if !errorlevel! equ 0 ( set "SYS_PYTHON=python" & exit /b 0 )
 )
 
+REM Try python3 in PATH
 where python3 >nul 2>&1
 if !errorlevel! equ 0 (
-    python3 --version >nul 2>&1
+    python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
     if !errorlevel! equ 0 ( set "SYS_PYTHON=python3" & exit /b 0 )
 )
 

@@ -335,6 +335,10 @@ class Renderer:
             ("/use_model <name>","switch LLM model (alias)"),
             ("/set_default_model <name>", "change default model in config.yaml"),
             ("/history",         "show message count"),
+            ("/voice",           "listen for one spoken request"),
+            ("/voice on|off",    "enable or disable continuous voice mode"),
+            ("/voice devices",   "list available microphones"),
+            ("/voice speak on|off", "enable or disable spoken replies"),
             ("/help",            "show this help"),
         ]
         for cmd, desc in commands:
