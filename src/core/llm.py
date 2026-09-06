@@ -302,6 +302,16 @@ class LLMClient:
             log.warning("Could not list models: %s", e)
             return []
 
+    def list_model_details(self) -> List[dict]:
+        """Return downloaded Ollama model metadata, including quantized size."""
+        try:
+            response = self._client.get(f"{self.base_url}/api/tags", timeout=3)
+            response.raise_for_status()
+            return response.json().get("models", [])
+        except Exception as e:
+            log.warning("Could not list model details: %s", e)
+            return []
+
     def _get_tags(self) -> List[str]:
         """Fetch and cache the model tag list from Ollama."""
         now = time.monotonic()

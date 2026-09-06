@@ -33,6 +33,8 @@ class LLMConfig:
     stream: bool = True
     timeout: int = 120
     cache_ttl: int = 300
+    auto_select: bool = True
+    auto_select_memory_fraction: float = 0.60
 
 
 @dataclass

@@ -283,7 +283,9 @@ def server_running() -> bool:
 
 def ensure_ollama():
     model = str(read_config("llm.model", "mistral") or "mistral")
-    start_step(f"model server ({model})")
+    auto_select = bool(read_config("llm.auto_select", True))
+    model_label = "auto" if auto_select else model
+    start_step(f"model server ({model_label})")
 
     if not shutil.which("ollama"):
         local_bin = ROOT / "models" / "ollama" / "bin"
@@ -308,12 +310,12 @@ def ensure_ollama():
         except (EOFError, KeyboardInterrupt):
             answer = "n"
         if answer not in {"y", "yes"}:
-            print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model})':<26}{C.RESET} [{C.RED}failed{C.RESET}]", flush=True)
+            print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model_label})':<26}{C.RESET} [{C.RED}failed{C.RESET}]", flush=True)
             sys.exit(1)
         _install_ollama()
 
     if not server_running():
-        print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model})':<26}{C.RESET} [{C.CYAN}starting...{C.RESET}]", end="", flush=True)
+        print(f"\r  {C.PURPLE}*{C.RESET}  {C.DIM}{f'model server ({model_label})':<26}{C.RESET} [{C.CYAN}starting...{C.RESET}]", end="", flush=True)
         subprocess.Popen(
             ["ollama", "serve"],
             stdout=subprocess.DEVNULL,
@@ -325,15 +327,24 @@ def ensure_ollama():
                 break
             time.sleep(0.3)
         else:
-            end_step(f"model server ({model})", "ready", C.YELLOW, sub_msg="Ollama slow to start, but continuing...")
+            end_step(f"model server ({model_label})", "ready", C.YELLOW, sub_msg="Ollama slow to start, but continuing...")
             os.environ["XIA_OLLAMA_VERIFIED"] = "1"
             return
 
     os.environ["XIA_OLLAMA_VERIFIED"] = "1"
 
+    has_model = _has_any_model() if auto_select else False
+    if auto_select and has_model:
+        end_step(
+            f"model server ({model_label})",
+            "ready",
+            sub_msg="using the best downloaded model for this PC",
+        )
+        return
+
     has_model = _ensure_model(model)
     if has_model:
-        end_step(f"model server ({model})", "ready")
+        end_step(f"model server ({model_label})", "ready")
 
 
 def _install_ollama():
@@ -393,6 +404,14 @@ def _ensure_model(model: str) -> bool:
     print_sub(f"Pulling '{model}'...")
     subprocess.run(["ollama", "pull", model])
     return True
+
+
+def _has_any_model() -> bool:
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as r:
+            return bool(json.loads(r.read()).get("models", []))
+    except Exception:
+        return False
 
 
 def _progress(count, block, total):

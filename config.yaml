@@ -13,6 +13,8 @@ llm:
   stream: true
   timeout: 300            # Seconds before giving up on a response
   cache_ttl: 300          # LLM response cache TTL in seconds (0 = disabled)
+  auto_select: true       # Pick the strongest downloaded model that fits this PC
+  auto_select_memory_fraction: 0.60  # RAM share reserved for model selection
 
 # ─────────────────────────────────────────────
 # Agent settings

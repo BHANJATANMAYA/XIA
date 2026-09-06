@@ -332,6 +332,7 @@ class Renderer:
             ("/skills",          "list learned skills"),
             ("/tools",           "list available tools"),
             ("/model <name>",    "switch LLM model"),
+            ("/model auto",      "choose the strongest downloaded model this PC can run"),
             ("/use_model <name>","switch LLM model (alias)"),
             ("/set_default_model <name>", "change default model in config.yaml"),
             ("/history",         "show message count"),

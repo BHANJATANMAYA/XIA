@@ -25,6 +25,7 @@ class CLI:
         self.skills   = None
         self.llm      = None
         self.router   = None
+        self.model_selection = None
         self.voice    = None
         self.speaker  = None
         self.voice_mode = False
@@ -43,11 +44,14 @@ class CLI:
         # LLM — must be first (others depend on it)
         self.renderer.print_connecting("connecting to ollama")
         self.llm = LLMClient()
+        self.model_selection = self._auto_select_model()
         if not self.llm.is_available():
             self.renderer.print_failed("model '" + cfg.llm.model + "' not found")
             self.renderer.error("Run: ollama pull " + cfg.llm.model)
             sys.exit(1)
-        self.renderer.print_ok(cfg.llm.model)
+        self.renderer.print_ok(self.llm.model)
+        if self.model_selection:
+            self.renderer.info("auto-selected " + self.llm.model + " — " + self.model_selection.reason)
 
         # Load tools, memory, and skills in parallel — they're independent
         def _load_tools():
@@ -96,6 +100,8 @@ class CLI:
 
         # Router (reuses cached tag list from LLMClient)
         self.router = ModelRouter(self.llm)
+        if self.model_selection:
+            self.router.set_allowed_models(list(self.model_selection.allowed_models))
         available = self.router.available_models()
         self.renderer.info("models available: " + ", ".join(available))
 
@@ -110,6 +116,22 @@ class CLI:
             on_step=self.renderer.print_step,
         )
         log.info("CLI fully initialised")
+
+    def _auto_select_model(self):
+        if not cfg.llm.auto_select:
+            return None
+        try:
+            from core.host import HostInfo
+            from core.model_selector import HardwareAwareModelSelector
+
+            selection = HardwareAwareModelSelector(self.llm, HostInfo()).select()
+            if selection:
+                self.llm.switch_model(selection.model)
+                cfg.llm.model = selection.model
+            return selection
+        except Exception as e:
+            log.warning("Automatic model selection unavailable: %s", e)
+            return None
 
     def _print_startup(self):
         self.renderer.print_banner(
@@ -413,6 +435,16 @@ class CLI:
         if not model_name.strip():
             self.renderer.info("current model: " + self.llm.model)
             self.renderer.info("use /models to see all available models")
+            return
+        if model_name.strip().lower() == "auto":
+            selection = self._auto_select_model()
+            if not selection:
+                self.renderer.warning("Could not find a downloaded chat model to auto-select")
+                return
+            if self.router:
+                self.router.set_allowed_models(list(selection.allowed_models))
+            self.renderer.success("auto-selected: " + selection.model)
+            self.renderer.info(selection.reason)
             return
         self.llm.switch_model(model_name.strip())
         if self.router:

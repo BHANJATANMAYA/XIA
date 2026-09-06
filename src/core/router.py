@@ -71,6 +71,12 @@ class ModelRouter:
     def __init__(self, llm):
         self._llm = llm
         self._available: Optional[List[str]] = None
+        self._allowed_models: Optional[set[str]] = None
+
+    def set_allowed_models(self, models: List[str]):
+        """Restrict automatic task routing to models that fit this host."""
+        self._allowed_models = set(models)
+        self.refresh()
 
     def pick(self, task: str) -> Tuple[str, str]:
         available = self._get_available()
@@ -140,6 +146,8 @@ class ModelRouter:
             return self._available
         try:
             models = self._llm.list_models()
+            if self._allowed_models is not None:
+                models = [model for model in models if model in self._allowed_models]
             self._available = [m.replace(":latest", "") for m in models]
             log.debug("Available models: %s", self._available)
         except Exception:
